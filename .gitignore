@@ -1,0 +1,40 @@
+# Ignore Cursor and documentation
+.cursor/
+docs/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# macOS
+.DS_Store
+
+# VSCode/IDE
+.vscode/
+.idea/
+
+# Env
+.env
+
+# Pytest/mypy
+.pytest_cache/
+.mypy_cache/
+
+# Coverage
+.coverage
+
+# Build
+build/
+dist/
+.eggs/
+*.egg-info/
+
+# Home Assistant
+home-assistant.log
+home-assistant_v2.db
+
+# Others
+*.log 

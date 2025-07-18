@@ -1,0 +1,9 @@
+{
+  "domain": "recipecards",
+  "name": "Recipe Cards",
+  "version": "0.0.1",
+  "documentation": "https://github.com/ClermontDigital/RecipeCards",
+  "requirements": [],
+  "dependencies": [],
+  "codeowners": ["@ClermontDigital"]
+} 
