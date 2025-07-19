@@ -1,10 +1,13 @@
 """Config flow for Recipe Cards integration."""
+import logging
 import voluptuous as vol
 
 from homeassistant import config_entries  # type: ignore[import-untyped]
 from homeassistant.core import callback  # type: ignore[import-untyped]
 from homeassistant.data_entry_flow import FlowResult  # type: ignore[import-untyped]
 from .const import DOMAIN
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @config_entries.HANDLERS.register(DOMAIN)
@@ -25,10 +28,14 @@ class RecipeCardsConfigFlow(config_entries.ConfigFlow):
                 description="Recipe Cards integration for storing and displaying recipes in a retro card interface. Click Submit to complete setup."
             )
 
-        return self.async_create_entry(
-            title="Recipe Cards",
-            data={}
-        )
+        try:
+            return self.async_create_entry(
+                title="Recipe Cards",
+                data={}
+            )
+        except Exception as e:
+            _LOGGER.exception("Unexpected exception in config flow")
+            return self.async_abort(reason="unknown")
 
     @staticmethod
     @callback
