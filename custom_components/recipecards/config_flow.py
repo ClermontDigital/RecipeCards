@@ -1,6 +1,7 @@
 from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
+from homeassistant.helpers import selector
 from .const import DOMAIN
 
 class RecipeCardsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -17,9 +18,7 @@ class RecipeCardsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return self.async_show_form(
                 step_id="user",
                 data_schema=None,
-                description_placeholders={
-                    "description": "Recipe Cards integration for storing and displaying recipes in a retro card interface."
-                }
+                description="Recipe Cards integration for storing and displaying recipes in a retro card interface. Click Submit to complete setup."
             )
 
         return self.async_create_entry(
@@ -43,4 +42,8 @@ class RecipeCardsOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_init(self, user_input=None):
         """Manage the options."""
-        return self.async_abort(reason="not_implemented") 
+        return self.async_show_form(
+            step_id="init",
+            data_schema=None,
+            description="Recipe Cards integration is configured. No additional options are available."
+        ) 

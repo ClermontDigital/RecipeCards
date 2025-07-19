@@ -9,12 +9,23 @@ RECIPE_UPDATE_TYPE = "recipecards/recipe_update"
 RECIPE_DELETE_TYPE = "recipecards/recipe_delete"
 
 async def async_list_recipes(hass, connection, msg):
-    storage = hass.data[DOMAIN]
+    # Get the first (and only) entry
+    entries = hass.data.get(DOMAIN, {})
+    if not entries:
+        connection.send_result(msg["id"], [])
+        return
+    
+    storage = list(entries.values())[0]  # Get the first storage instance
     recipes = await storage.async_load_recipes()
     connection.send_result(msg["id"], [r.to_dict() for r in recipes])
 
 async def async_get_recipe(hass, connection, msg):
-    storage = hass.data[DOMAIN]
+    entries = hass.data.get(DOMAIN, {})
+    if not entries:
+        connection.send_error(msg["id"], "not_found", "Integration not configured")
+        return
+    
+    storage = list(entries.values())[0]
     recipe_id = msg["recipe_id"]
     recipes = await storage.async_load_recipes()
     for recipe in recipes:
@@ -24,14 +35,24 @@ async def async_get_recipe(hass, connection, msg):
     connection.send_error(msg["id"], "not_found", "Recipe not found")
 
 async def async_add_recipe(hass, connection, msg):
-    storage = hass.data[DOMAIN]
+    entries = hass.data.get(DOMAIN, {})
+    if not entries:
+        connection.send_error(msg["id"], "not_found", "Integration not configured")
+        return
+    
+    storage = list(entries.values())[0]
     data = msg["recipe"]
     recipe = Recipe.from_dict(data)
     await storage.async_add_recipe(recipe)
     connection.send_result(msg["id"], recipe.to_dict())
 
 async def async_update_recipe(hass, connection, msg):
-    storage = hass.data[DOMAIN]
+    entries = hass.data.get(DOMAIN, {})
+    if not entries:
+        connection.send_error(msg["id"], "not_found", "Integration not configured")
+        return
+    
+    storage = list(entries.values())[0]
     recipe_id = msg["recipe_id"]
     data = msg["recipe"]
     updated_recipe = Recipe.from_dict(data)
@@ -42,7 +63,12 @@ async def async_update_recipe(hass, connection, msg):
         connection.send_error(msg["id"], "not_found", "Recipe not found")
 
 async def async_delete_recipe(hass, connection, msg):
-    storage = hass.data[DOMAIN]
+    entries = hass.data.get(DOMAIN, {})
+    if not entries:
+        connection.send_error(msg["id"], "not_found", "Integration not configured")
+        return
+    
+    storage = list(entries.values())[0]
     recipe_id = msg["recipe_id"]
     await storage.async_delete_recipe(recipe_id)
     connection.send_result(msg["id"], True)
