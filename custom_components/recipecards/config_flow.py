@@ -1,4 +1,6 @@
 """Config flow for Recipe Cards integration."""
+import voluptuous as vol
+
 from homeassistant import config_entries  # type: ignore[import-untyped]
 from homeassistant.core import callback  # type: ignore[import-untyped]
 from homeassistant.data_entry_flow import FlowResult  # type: ignore[import-untyped]
@@ -7,7 +9,7 @@ from .const import DOMAIN
 
 class RecipeCardsConfigFlow(config_entries.ConfigFlow):
     """Handle a config flow for Recipe Cards."""
-    
+
     VERSION = 1
 
     async def async_step_user(self, user_input=None) -> FlowResult:
@@ -18,7 +20,7 @@ class RecipeCardsConfigFlow(config_entries.ConfigFlow):
         if user_input is None:
             return self.async_show_form(
                 step_id="user",
-                data_schema=None,
+                data_schema=vol.Schema({}),
                 description="Recipe Cards integration for storing and displaying recipes in a retro card interface. Click Submit to complete setup."
             )
 
@@ -36,7 +38,7 @@ class RecipeCardsConfigFlow(config_entries.ConfigFlow):
 
 class RecipeCardsOptionsFlow(config_entries.OptionsFlow):
     """Handle options."""
-    
+
     def __init__(self, config_entry):
         """Initialize options flow."""
         self.config_entry = config_entry
@@ -45,6 +47,6 @@ class RecipeCardsOptionsFlow(config_entries.OptionsFlow):
         """Manage the options."""
         return self.async_show_form(
             step_id="init",
-            data_schema=None,
+            data_schema=vol.Schema({}),
             description="Recipe Cards integration is configured. No additional options are available."
-        ) 
+        )
