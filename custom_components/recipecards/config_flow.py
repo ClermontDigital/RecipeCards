@@ -7,6 +7,7 @@ from homeassistant.data_entry_flow import FlowResult  # type: ignore[import-unty
 from .const import DOMAIN
 
 
+@config_entries.HANDLERS.register(DOMAIN)
 class RecipeCardsConfigFlow(config_entries.ConfigFlow):
     """Handle a config flow for Recipe Cards."""
 
