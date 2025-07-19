@@ -9,6 +9,8 @@ from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
+_LOGGER.info("RecipeCardsConfigFlow loaded")
+
 
 @config_entries.HANDLERS.register(DOMAIN)
 class RecipeCardsConfigFlow(config_entries.ConfigFlow):
@@ -18,6 +20,7 @@ class RecipeCardsConfigFlow(config_entries.ConfigFlow):
 
     async def async_step_user(self, user_input=None) -> FlowResult:
         """Handle the initial step."""
+        _LOGGER.info("Starting async_step_user")
         if self._async_current_entries():
             return self.async_abort(reason="single_instance_allowed")
 
@@ -29,6 +32,7 @@ class RecipeCardsConfigFlow(config_entries.ConfigFlow):
             )
 
         try:
+            _LOGGER.info("Creating config entry")
             return self.async_create_entry(
                 title="Recipe Cards",
                 data={}
