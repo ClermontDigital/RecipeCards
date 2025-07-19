@@ -1,0 +1,25 @@
+{
+  "name": "recipecards-card",
+  "version": "1.0.0",
+  "description": "Custom Lovelace card for RecipeCards integration (Home Assistant)",
+  "main": "dist/recipecards-card.js",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch"
+  },
+  "keywords": [
+    "home-assistant",
+    "lovelace",
+    "custom-card",
+    "recipecards"
+  ],
+  "author": "@ClermontDigital",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "home-assistant-js-websocket": "^7.0.1",
+    "lit": "^3.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}

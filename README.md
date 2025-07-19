@@ -1,35 +1,167 @@
-# RecipeCards Home Assistant Integration
+# RecipeCards - Recipe Management for Home Assistant
 
-[![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz/)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![HACS Badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/custom-components/hacs)
+[![Version](https://img.shields.io/badge/version-1.0.0-green.svg)](https://github.com/ClermontDigital/RecipeCards)
 
-A Home Assistant custom integration for managing and displaying recipe cards, by [@ClermontDigital](https://github.com/ClermontDigital).
+Retro-style recipe card management for Home Assistant. Store, browse, and display recipes in a classic 80s-inspired card interface with flip animations and persistent storage.
 
 ## Features
-- Persistent recipe storage (title, description, ingredients, notes, instructions, color)
-- Lovelace card with retro UI and color customization
-- WebSocket API for CRUD operations
-- HACS-ready structure
 
-## Installation
-1. Copy the `custom_components/recipecards` directory to your Home Assistant `custom_components` folder.
-2. Restart Home Assistant.
-3. Add the integration via the UI ("Recipe Cards").
+- 📝 **Recipe Storage** - Persistent storage for recipes with title, description, ingredients, notes, and instructions
+- 🎨 **Retro UI** - 80s-inspired card design with flip animations and color customization
+- 🔄 **WebSocket API** - Real-time CRUD operations for recipe management
+- 📱 **Lovelace Card** - Custom card component for displaying recipes
+- 🎯 **Color Customization** - Change card title area colors to match your theme
+- 🚀 **HACS Ready** - Easy installation and updates via HACS
+
+## Quick Setup
+
+### Requirements
+- Home Assistant 2024.1+
+- HACS (Home Assistant Community Store)
+
+### Installation
+1. **HACS**: Add custom repository `https://github.com/ClermontDigital/RecipeCards`
+2. **Manual**: Download and extract to `/config/custom_components/recipecards/`
+3. Restart Home Assistant
+4. Add integration via Settings → Devices & Services
+
+### Configuration
+1. **Add RecipeCards Integration:**
+   - Go to Settings → Devices & Services
+   - Click "Add Integration"
+   - Search for "Recipe Cards"
+   - Complete the setup
+
+2. **Add Lovelace Card:**
+   - Edit your dashboard
+   - Add card → Manual
+   - Add the RecipeCards card
 
 ## Usage
-- Use the Lovelace card to view and manage recipes.
-- Change the color of the card title area with the built-in color picker.
-- Recipes are stored persistently and can be managed via the UI or API.
+
+### Entities Created
+- `sensor.recipecards_recipe_count` - Total number of stored recipes
+- `sensor.recipecards_last_updated` - Last recipe modification time
+
+### Recipe Management Service
+```yaml
+service: recipecards.add_recipe
+data:
+  title: "Chocolate Chip Cookies"
+  description: "Classic homemade cookies"
+  ingredients:
+    - "2 cups flour"
+    - "1 cup butter"
+    - "1 cup chocolate chips"
+  notes: "Bake at 350°F for 12 minutes"
+  instructions: "Mix ingredients, form cookies, bake until golden"
+  color: "#FF6B35"
+```
+
+### Adding Recipes Examples
+
+**Developer Tools - Actions:**
+1. Go to Developer Tools → Actions
+2. Choose `recipecards.add_recipe`
+3. Fill in the form with your recipe details
+
+**In Automations:**
+```yaml
+# Add recipe from template
+- service: recipecards.add_recipe
+  data:
+    title: "Quick Breakfast"
+    description: "Simple morning meal"
+    ingredients:
+      - "2 eggs"
+      - "1 slice bread"
+      - "Butter"
+    notes: "Cook eggs sunny side up"
+    instructions: "Toast bread, fry eggs, serve together"
+    color: "#4CAF50"
+```
+
+### Lovelace Card Configuration
+
+**Basic Card:**
+```yaml
+type: custom:recipecards-card
+recipe_id: "chocolate-chip-cookies"
+```
+
+**Card with Custom Styling:**
+```yaml
+type: custom:recipecards-card
+recipe_id: "chocolate-chip-cookies"
+title: "My Recipe"
+show_ingredients: true
+show_notes: true
+```
+
+### Recipe Management Examples
+
+**Update Recipe:**
+```yaml
+service: recipecards.update_recipe
+data:
+  recipe_id: "chocolate-chip-cookies"
+  title: "Updated Chocolate Chip Cookies"
+  description: "Improved recipe with better ingredients"
+  ingredients:
+    - "2.5 cups flour"
+    - "1.25 cups butter"
+    - "1.5 cups chocolate chips"
+  notes: "Bake at 375°F for 10-12 minutes"
+  instructions: "Cream butter and sugar, add eggs, mix in dry ingredients, fold in chocolate chips, bake"
+  color: "#E91E63"
+```
+
+**Delete Recipe:**
+```yaml
+service: recipecards.delete_recipe
+data:
+  recipe_id: "chocolate-chip-cookies"
+```
+
+## API Documentation
+
+The integration provides a WebSocket API for recipe management:
+
+- **Add Recipe**: `recipecards/add_recipe`
+- **Update Recipe**: `recipecards/update_recipe`
+- **Delete Recipe**: `recipecards/delete_recipe`
+- **Get Recipe**: `recipecards/get_recipe`
+- **List Recipes**: `recipecards/list_recipes`
+
+## Troubleshooting
+
+- **Card not displaying**: Check that the recipe_id exists and the Lovelace card is properly configured
+- **Integration not loading**: Restart Home Assistant after installation
+- **Recipes not saving**: Verify the integration is properly configured
+
+Enable debug logging:
+```yaml
+logger:
+  logs:
+    custom_components.recipecards: debug
+```
 
 ## Development
+
 - Python 3.10+
+- TypeScript/LitElement for frontend
 - Follows [semantic versioning](https://semver.org/)
 - See `tests/` for backend unit tests
 
-## HACS
-- Add this repository as a custom repository in HACS to install and update easily.
+## Contributing
+
+Bug reports and feature requests welcome via [GitHub Issues](https://github.com/ClermontDigital/RecipeCards/issues).
 
 ## License
-[Apache 2.0](LICENSE)
+
+Apache 2.0 License - see [LICENSE](LICENSE) file for details.
 
 ---
 
