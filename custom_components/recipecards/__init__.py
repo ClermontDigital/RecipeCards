@@ -10,7 +10,7 @@ PLATFORMS: list[str] = []
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Recipe Cards from a config entry."""
     hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = RecipeStorage(hass)
+    hass.data[DOMAIN][entry.entry_id] = RecipeStorage(hass, entry.entry_id)
     
     # Register the API
     register_api(hass)
@@ -22,4 +22,4 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         hass.data[DOMAIN].pop(entry.entry_id)
 
-    return unload_ok 
+    return unload_ok

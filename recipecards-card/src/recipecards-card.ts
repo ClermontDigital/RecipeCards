@@ -26,6 +26,7 @@ declare global {
 
 @customElement('recipecards-card')
 export class RecipeCardsCard extends LitElement {
+  private hass: any;
   config?: RecipeCardsConfig;
   private flipped = false;
   private recipe?: Recipe;
@@ -237,25 +238,23 @@ export class RecipeCardsCard extends LitElement {
       this.error = undefined;
       this.requestUpdate();
 
-      const hass = window.hass;
-      if (!hass) {
+      if (!this.hass) {
         throw new Error('Home Assistant not available');
       }
 
-      const recipes = await hass.callWS({
+      const recipes = await this.hass.callWS({
         type: 'recipecards/recipe_list',
       });
 
       this.recipes = recipes;
       
-      // Load the first recipe or the specified recipe
       if (this.recipes.length > 0) {
         const targetRecipeId = this.config?.recipe_id || this.recipes[0].id;
-        await this.loadRecipe(targetRecipeId);
-      } else {
-        this.loading = false;
-        this.requestUpdate();
+        this.recipe = this.recipes.find(r => r.id === targetRecipeId);
       }
+      
+      this.loading = false;
+      this.requestUpdate();
     } catch (err) {
       this.error = err instanceof Error ? err.message : 'Failed to load recipes';
       this.loading = false;
@@ -263,31 +262,10 @@ export class RecipeCardsCard extends LitElement {
     }
   }
 
-  private async loadRecipe(recipeId: string) {
-    try {
-      const hass = window.hass;
-      if (!hass) {
-        throw new Error('Home Assistant not available');
-      }
-
-      const result = await hass.callWS({
-        type: 'recipecards/recipe_get',
-        recipe_id: recipeId,
-      });
-
-      this.recipe = result;
-      this.loading = false;
-      this.requestUpdate();
-    } catch (err) {
-      this.error = err instanceof Error ? err.message : 'Failed to load recipe';
-      this.loading = false;
-      this.requestUpdate();
-    }
-  }
-
-  private async switchRecipe(recipeId: string) {
+  private switchRecipe(recipeId: string) {
     this.flipped = false; // Reset flip state when switching recipes
-    await this.loadRecipe(recipeId);
+    this.recipe = this.recipes.find(r => r.id === recipeId);
+    this.requestUpdate();
   }
 
   private flipCard(e: Event) {
