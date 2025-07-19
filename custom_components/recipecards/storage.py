@@ -1,4 +1,4 @@
-from homeassistant.helpers.storage import Store
+from homeassistant.helpers.storage import Store  # type: ignore[import-untyped]
 from .const import DOMAIN
 from .models import Recipe
 

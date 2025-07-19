@@ -1,6 +1,6 @@
 """The Recipe Cards integration."""
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.config_entries import ConfigEntry  # type: ignore[import-untyped]
+from homeassistant.core import HomeAssistant  # type: ignore[import-untyped]
 from .const import DOMAIN
 from .storage import RecipeStorage
 from .api import register_api

@@ -1,4 +1,7 @@
-from homeassistant.components import websocket_api
+"""WebSocket API for Recipe Cards integration."""
+from typing import Any
+from homeassistant.core import HomeAssistant  # type: ignore[import-untyped]
+from homeassistant.components import websocket_api  # type: ignore[import-untyped]
 from .const import DOMAIN
 from .models import Recipe
 
@@ -8,7 +11,8 @@ RECIPE_ADD_TYPE = "recipecards/recipe_add"
 RECIPE_UPDATE_TYPE = "recipecards/recipe_update"
 RECIPE_DELETE_TYPE = "recipecards/recipe_delete"
 
-async def async_list_recipes(hass, connection, msg):
+async def async_list_recipes(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """List all recipes."""
     # Get the first (and only) entry
     entries = hass.data.get(DOMAIN, {})
     if not entries:
@@ -19,7 +23,8 @@ async def async_list_recipes(hass, connection, msg):
     recipes = await storage.async_load_recipes()
     connection.send_result(msg["id"], [r.to_dict() for r in recipes])
 
-async def async_get_recipe(hass, connection, msg):
+async def async_get_recipe(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """Get a specific recipe by ID."""
     entries = hass.data.get(DOMAIN, {})
     if not entries:
         connection.send_error(msg["id"], "not_found", "Integration not configured")
@@ -34,7 +39,8 @@ async def async_get_recipe(hass, connection, msg):
             return
     connection.send_error(msg["id"], "not_found", "Recipe not found")
 
-async def async_add_recipe(hass, connection, msg):
+async def async_add_recipe(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """Add a new recipe."""
     entries = hass.data.get(DOMAIN, {})
     if not entries:
         connection.send_error(msg["id"], "not_found", "Integration not configured")
@@ -46,7 +52,8 @@ async def async_add_recipe(hass, connection, msg):
     await storage.async_add_recipe(recipe)
     connection.send_result(msg["id"], recipe.to_dict())
 
-async def async_update_recipe(hass, connection, msg):
+async def async_update_recipe(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """Update an existing recipe."""
     entries = hass.data.get(DOMAIN, {})
     if not entries:
         connection.send_error(msg["id"], "not_found", "Integration not configured")
@@ -62,7 +69,8 @@ async def async_update_recipe(hass, connection, msg):
     else:
         connection.send_error(msg["id"], "not_found", "Recipe not found")
 
-async def async_delete_recipe(hass, connection, msg):
+async def async_delete_recipe(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """Delete a recipe by ID."""
     entries = hass.data.get(DOMAIN, {})
     if not entries:
         connection.send_error(msg["id"], "not_found", "Integration not configured")
@@ -73,7 +81,8 @@ async def async_delete_recipe(hass, connection, msg):
     await storage.async_delete_recipe(recipe_id)
     connection.send_result(msg["id"], True)
 
-def register_api(hass):
+def register_api(hass: HomeAssistant) -> None:
+    """Register the WebSocket API commands."""
     websocket_api.async_register_command(
         hass,
         websocket_api.async_response(RECIPE_LIST_TYPE)(async_list_recipes),

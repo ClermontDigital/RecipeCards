@@ -1,7 +1,7 @@
-from homeassistant import config_entries
-from homeassistant.core import callback
-from homeassistant.data_entry_flow import FlowResult
-from homeassistant.helpers import selector
+from homeassistant import config_entries  # type: ignore[import-untyped]
+from homeassistant.core import callback  # type: ignore[import-untyped]
+from homeassistant.data_entry_flow import FlowResult  # type: ignore[import-untyped]
+from homeassistant.helpers import selector  # type: ignore[import-untyped]
 from .const import DOMAIN
 
 class RecipeCardsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
