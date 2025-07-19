@@ -1,0 +1,60 @@
+{
+  "name": "@open-wc/scoped-elements",
+  "version": "3.0.6",
+  "publishConfig": {
+    "access": "public"
+  },
+  "description": "Allows to auto define custom elements scoping them",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/open-wc/open-wc.git",
+    "directory": "packages/scoped-elements"
+  },
+  "author": "open-wc",
+  "homepage": "https://github.com/open-wc/open-wc/tree/master/packages/scoped-elements",
+  "type": "module",
+  "exports": {
+    "./html-element.js": {
+      "types": "./html-element.d.ts",
+      "default": "./html-element.js"
+    },
+    "./lit-element.js": {
+      "types": "./lit-element.d.ts",
+      "default": "./lit-element.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "prepublishOnly": "publish-docs --github-url https://github.com/open-wc/open-wc/ --git-root-dir ../../",
+    "test": "cd ../../ && npm run test:web --group scoped-elements"
+  },
+  "files": [
+    "*.d.ts",
+    "*.d.ts.map",
+    "html-element.js",
+    "lit-element.js",
+    "MIGRATION.md",
+    "README.md"
+  ],
+  "keywords": [
+    "scoped elements",
+    "scoped",
+    "scoped custom element registry",
+    "custom elements",
+    "lit-html",
+    "lit-element",
+    "web components",
+    "utils",
+    "helpers"
+  ],
+  "dependencies": {
+    "@open-wc/dedupe-mixin": "^2.0.0",
+    "lit": "^3.0.0"
+  },
+  "devDependencies": {
+    "@open-wc/testing": "^3.2.2",
+    "@webcomponents/scoped-custom-element-registry": "^0.0.9"
+  },
+  "sideEffects": false
+}

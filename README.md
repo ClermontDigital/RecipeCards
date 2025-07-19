@@ -11,7 +11,8 @@ Retro-style recipe card management for Home Assistant. Store, browse, and displa
 - 📝 **Recipe Storage** - Persistent storage for recipes with title, description, ingredients, notes, and instructions
 - 🎨 **Retro UI** - 80s-inspired card design with flip animations and color customization
 - 🔄 **WebSocket API** - Real-time CRUD operations for recipe management
-- 📱 **Lovelace Card** - Custom card component for displaying recipes
+- 📱 **Lovelace Card** - Custom card component for displaying recipes with tab navigation
+- 🏷️ **Recipe Index** - Tab bar interface to browse and switch between multiple recipes
 - 🎯 **Color Customization** - Change card title area colors to match your theme
 - 🚀 **HACS Ready** - Easy installation and updates via HACS
 
@@ -85,20 +86,23 @@ data:
 
 ### Lovelace Card Configuration
 
-**Basic Card:**
+**Show All Recipes (with Tab Bar):**
+```yaml
+type: custom:recipecards-card
+# No recipe_id specified - shows all recipes in tabs
+```
+
+**Show Specific Recipe:**
 ```yaml
 type: custom:recipecards-card
 recipe_id: "chocolate-chip-cookies"
 ```
 
-**Card with Custom Styling:**
-```yaml
-type: custom:recipecards-card
-recipe_id: "chocolate-chip-cookies"
-title: "My Recipe"
-show_ingredients: true
-show_notes: true
-```
+**Card Features:**
+- **Tab Navigation**: Click recipe titles in the tab bar to switch between recipes
+- **Flip Animation**: Click the card or "Flip for Instructions" button to see cooking instructions
+- **Responsive Design**: Works on desktop and mobile devices
+- **Loading States**: Shows loading indicators while fetching recipe data
 
 ### Recipe Management Examples
 
@@ -137,7 +141,8 @@ The integration provides a WebSocket API for recipe management:
 
 ## Troubleshooting
 
-- **Card not displaying**: Check that the recipe_id exists and the Lovelace card is properly configured
+- **Card not displaying**: Check that recipes exist and the Lovelace card is properly configured
+- **Tab bar not showing**: Ensure you have multiple recipes added to see the tab navigation
 - **Integration not loading**: Restart Home Assistant after installation
 - **Recipes not saving**: Verify the integration is properly configured
 

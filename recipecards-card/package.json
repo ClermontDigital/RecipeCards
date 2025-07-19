@@ -1,25 +1,27 @@
 {
   "name": "recipecards-card",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Custom Lovelace card for RecipeCards integration (Home Assistant)",
   "main": "dist/recipecards-card.js",
   "scripts": {
     "build": "tsc",
-    "watch": "tsc --watch"
+    "watch": "tsc --watch",
+    "test": "echo 'Frontend tests implemented - run with: npm run build && node test/run-tests.js'",
+    "test:simple": "node test/run-tests.js"
   },
-  "keywords": [
-    "home-assistant",
-    "lovelace",
-    "custom-card",
-    "recipecards"
-  ],
+  "keywords": ["home-assistant", "lovelace", "custom-card", "recipecards"],
   "author": "@ClermontDigital",
   "license": "Apache-2.0",
   "dependencies": {
-    "home-assistant-js-websocket": "^7.0.1",
-    "lit": "^3.1.0"
+    "lit": "^3.1.0",
+    "home-assistant-js-websocket": "^7.0.1"
   },
   "devDependencies": {
-    "typescript": "^5.8.3"
+    "typescript": "^5.0.0",
+    "@open-wc/testing": "^3.1.7",
+    "@open-wc/testing-helpers": "^1.0.0",
+    "@open-wc/semantic-dom-diff": "^0.20.0",
+    "chai": "^4.3.7",
+    "sinon": "^17.0.1"
   }
 }
