@@ -1,7 +1,6 @@
 """The Recipe Cards integration."""
-import logging
-from homeassistant.config_entries import ConfigEntry  # type: ignore[import-untyped]
-from homeassistant.core import HomeAssistant  # type: ignore[import-untyped]
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
 from .const import DOMAIN
 from .storage import RecipeStorage
 from .api import register_api
@@ -9,9 +8,7 @@ from .api import register_api
 # Import config flow to register it
 from . import config_flow
 
-_LOGGER = logging.getLogger(__name__)
-
-PLATFORMS: list[str] = []
+PLATFORMS = []
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Set up the Recipe Cards component."""
