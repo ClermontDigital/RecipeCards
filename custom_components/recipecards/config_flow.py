@@ -12,7 +12,6 @@ _LOGGER = logging.getLogger(__name__)
 _LOGGER.info("RecipeCardsConfigFlow loaded")
 
 
-@config_entries.HANDLERS.register(DOMAIN)
 class RecipeCardsConfigFlow(config_entries.ConfigFlow):
     """Handle a config flow for Recipe Cards."""
 
