@@ -8,6 +8,9 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from .const import DOMAIN
 from .storage import RecipeStorage
 
+# Import config flow to register it
+from . import config_flow
+
 
 PLATFORMS = ["sensor"]
 
@@ -29,7 +32,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = DataUpdateCoordinator(
         hass,
         logger=__name__,
-        name=f"recipecards_sensor_{entry.data.get('name', entry.entry_id)}",
+        name=f"recipecards_sensor_{entry.entry_id}",
         update_method=async_update_data,
         update_interval=None,
     )
