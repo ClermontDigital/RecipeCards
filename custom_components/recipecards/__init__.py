@@ -14,6 +14,9 @@ from .const import DOMAIN
 from .storage import RecipeStorage
 from .api import register_api
 
+# Import config flow to register it
+from . import config_flow
+
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]

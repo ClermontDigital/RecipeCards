@@ -19,39 +19,30 @@ class RecipeCardsConfigFlow(config_entries.ConfigFlow):
 
     VERSION = 1
 
-    def __init__(self) -> None:
-        """Initialize the config flow."""
-        self.data: dict[str, Any] = {}
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle the initial step."""
+        if self._async_current_entries():
+            return self.async_abort(reason="single_instance_allowed")
+
+        if user_input is None:
+            return self.async_show_form(
+                step_id="user",
+                data_schema=vol.Schema({}),
+                description="Recipe Cards integration for storing and displaying recipes in a retro card interface. Click Submit to complete setup."
+            )
+
+        return self.async_create_entry(
+            title="Recipe Cards",
+            data={}
+        )
 
     @staticmethod
     @callback
     def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> RecipeCardsOptionsFlow:
         """Create the options flow."""
         return RecipeCardsOptionsFlow(config_entry)
-
-    async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Handle the initial step."""
-        errors: dict[str, str] = {}
-
-        if user_input is not None:
-            try:
-                # Create the config entry
-                return self.async_create_entry(
-                    title="Recipe Cards",
-                    data={}
-                )
-            except Exception:  # pylint: disable=broad-except
-                _LOGGER.exception("Unexpected exception")
-                errors["base"] = "unknown"
-
-        return self.async_show_form(
-            step_id="user",
-            data_schema=vol.Schema({}),
-            errors=errors,
-            description="Recipe Cards integration for storing and displaying recipes in a retro card interface. Click Submit to complete setup."
-        )
 
 
 class RecipeCardsOptionsFlow(config_entries.OptionsFlow):
