@@ -4,6 +4,7 @@ from homeassistant.core import HomeAssistant
 from .const import DOMAIN
 from .storage import RecipeStorage
 from .api import register_api
+from .services import register_services
 
 # Import config flow to register it
 from . import config_flow
@@ -19,8 +20,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = RecipeStorage(hass, entry.entry_id)
     
-    # Register the API
+    # Register the API and services
     register_api(hass)
+    await register_services(hass)
     
     return True
 

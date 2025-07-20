@@ -1,0 +1,116 @@
+add_recipe:
+  name: Add Recipe
+  description: Add a new recipe to the collection
+  fields:
+    title:
+      name: Title
+      description: The title of the recipe
+      required: true
+      selector:
+        text:
+    description:
+      name: Description
+      description: A brief description of the recipe
+      required: false
+      selector:
+        text:
+    ingredients:
+      name: Ingredients
+      description: List of ingredients
+      required: true
+      selector:
+        object:
+    notes:
+      name: Notes
+      description: Additional notes about the recipe
+      required: false
+      selector:
+        text:
+          multiline: true
+    instructions:
+      name: Instructions
+      description: Cooking instructions
+      required: false
+      selector:
+        object:
+    color:
+      name: Color
+      description: Color for the recipe card (hex format)
+      required: false
+      default: "#FFD700"
+      selector:
+        color_rgb:
+
+update_recipe:
+  name: Update Recipe
+  description: Update an existing recipe
+  fields:
+    recipe_id:
+      name: Recipe ID
+      description: The ID of the recipe to update
+      required: true
+      selector:
+        text:
+    title:
+      name: Title
+      description: The title of the recipe
+      required: false
+      selector:
+        text:
+    description:
+      name: Description
+      description: A brief description of the recipe
+      required: false
+      selector:
+        text:
+    ingredients:
+      name: Ingredients
+      description: List of ingredients
+      required: false
+      selector:
+        object:
+    notes:
+      name: Notes
+      description: Additional notes about the recipe
+      required: false
+      selector:
+        text:
+          multiline: true
+    instructions:
+      name: Instructions
+      description: Cooking instructions
+      required: false
+      selector:
+        object:
+    color:
+      name: Color
+      description: Color for the recipe card (hex format)
+      required: false
+      selector:
+        color_rgb:
+
+delete_recipe:
+  name: Delete Recipe
+  description: Delete a recipe from the collection
+  fields:
+    recipe_id:
+      name: Recipe ID
+      description: The ID of the recipe to delete
+      required: true
+      selector:
+        text:
+
+get_recipe:
+  name: Get Recipe
+  description: Get a specific recipe by ID
+  fields:
+    recipe_id:
+      name: Recipe ID
+      description: The ID of the recipe to retrieve
+      required: true
+      selector:
+        text:
+
+list_recipes:
+  name: List Recipes
+  description: List all recipes in the collection

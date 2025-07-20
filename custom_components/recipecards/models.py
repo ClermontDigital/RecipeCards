@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import List, Optional, Any
 
 @dataclass
 class Recipe:
@@ -11,7 +11,7 @@ class Recipe:
     instructions: List[str] = field(default_factory=list)
     color: str = "#FFD700"  # Default gold
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "title": self.title,
@@ -23,9 +23,10 @@ class Recipe:
         }
 
     @classmethod
-    def from_dict(cls, data):
+    def from_dict(cls, data: dict[str, Any]) -> "Recipe":
+        import uuid
         return cls(
-            id=data.get("id", ""),
+            id=data.get("id", str(uuid.uuid4())),
             title=data.get("title", ""),
             description=data.get("description", ""),
             ingredients=data.get("ingredients", []),

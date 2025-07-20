@@ -2,7 +2,7 @@
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![HACS Badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/custom-components/hacs)
-[![Version](https://img.shields.io/badge/version-1.0.12-green.svg)](https://github.com/ClermontDigital/RecipeCards)
+[![Version](https://img.shields.io/badge/version-1.0.13-green.svg)](https://github.com/ClermontDigital/RecipeCards)
 
 Retro-style recipe card management for Home Assistant. Store, browse, and display recipes in a classic 80s-inspired card interface with flip animations and persistent storage.
 
@@ -46,7 +46,11 @@ Retro-style recipe card management for Home Assistant. Store, browse, and displa
 - `sensor.recipecards_recipe_count` - Total number of stored recipes
 - `sensor.recipecards_last_updated` - Last recipe modification time
 
-### Recipe Management Service
+### Recipe Management Services
+
+RecipeCards provides several services for recipe management:
+
+**Add Recipe:**
 ```yaml
 service: recipecards.add_recipe
 data:
@@ -57,15 +61,47 @@ data:
     - "1 cup butter"
     - "1 cup chocolate chips"
   notes: "Bake at 350°F for 12 minutes"
-  instructions: "Mix ingredients, form cookies, bake until golden"
+  instructions:
+    - "Mix dry ingredients in a bowl"
+    - "Cream butter and add to mixture"
+    - "Form cookies and bake until golden"
   color: "#FF6B35"
 ```
 
-### Adding Recipes Examples
+**Update Recipe:**
+```yaml
+service: recipecards.update_recipe
+data:
+  recipe_id: "your-recipe-id"
+  title: "Updated Chocolate Chip Cookies"
+  description: "Improved recipe with better ingredients"
+  color: "#E91E63"
+```
+
+**Delete Recipe:**
+```yaml
+service: recipecards.delete_recipe
+data:
+  recipe_id: "your-recipe-id"
+```
+
+**Get Recipe:**
+```yaml
+service: recipecards.get_recipe
+data:
+  recipe_id: "your-recipe-id"
+```
+
+**List All Recipes:**
+```yaml
+service: recipecards.list_recipes
+```
+
+### Using Services
 
 **Developer Tools - Actions:**
 1. Go to Developer Tools → Actions
-2. Choose `recipecards.add_recipe`
+2. Choose any `recipecards.*` service
 3. Fill in the form with your recipe details
 
 **In Automations:**
@@ -80,7 +116,10 @@ data:
       - "1 slice bread"
       - "Butter"
     notes: "Cook eggs sunny side up"
-    instructions: "Toast bread, fry eggs, serve together"
+    instructions:
+      - "Toast bread until golden"
+      - "Fry eggs sunny side up"
+      - "Serve together while hot"
     color: "#4CAF50"
 ```
 
@@ -104,9 +143,9 @@ recipe_id: "chocolate-chip-cookies"
 - **Responsive Design**: Works on desktop and mobile devices
 - **Loading States**: Shows loading indicators while fetching recipe data
 
-### Recipe Management Examples
+### Advanced Service Examples
 
-**Update Recipe:**
+**Update Multiple Fields:**
 ```yaml
 service: recipecards.update_recipe
 data:
@@ -118,15 +157,13 @@ data:
     - "1.25 cups butter"
     - "1.5 cups chocolate chips"
   notes: "Bake at 375°F for 10-12 minutes"
-  instructions: "Cream butter and sugar, add eggs, mix in dry ingredients, fold in chocolate chips, bake"
+  instructions:
+    - "Cream butter and sugar until fluffy"
+    - "Add eggs one at a time"
+    - "Mix in dry ingredients gradually"
+    - "Fold in chocolate chips"
+    - "Bake until edges are golden"
   color: "#E91E63"
-```
-
-**Delete Recipe:**
-```yaml
-service: recipecards.delete_recipe
-data:
-  recipe_id: "chocolate-chip-cookies"
 ```
 
 ## API Documentation
