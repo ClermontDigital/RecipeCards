@@ -1,7 +1,14 @@
 add_recipe:
   name: Add Recipe
-  description: Add a new recipe to the collection
+  description: Add a new recipe to a specific recipe list.
   fields:
+    config_entry_id:
+      name: Recipe List
+      description: The recipe list to add the recipe to.
+      required: true
+      selector:
+        config_entry:
+          integration: recipecards
     title:
       name: Title
       description: The title of the recipe
@@ -43,8 +50,15 @@ add_recipe:
 
 update_recipe:
   name: Update Recipe
-  description: Update an existing recipe
+  description: Update an existing recipe in a specific recipe list.
   fields:
+    config_entry_id:
+      name: Recipe List
+      description: The recipe list containing the recipe to update.
+      required: true
+      selector:
+        config_entry:
+          integration: recipecards
     recipe_id:
       name: Recipe ID
       description: The ID of the recipe to update
@@ -91,26 +105,18 @@ update_recipe:
 
 delete_recipe:
   name: Delete Recipe
-  description: Delete a recipe from the collection
+  description: Delete a recipe from a specific recipe list.
   fields:
+    config_entry_id:
+      name: Recipe List
+      description: The recipe list containing the recipe to delete.
+      required: true
+      selector:
+        config_entry:
+          integration: recipecards
     recipe_id:
       name: Recipe ID
       description: The ID of the recipe to delete
       required: true
       selector:
         text:
-
-get_recipe:
-  name: Get Recipe
-  description: Get a specific recipe by ID
-  fields:
-    recipe_id:
-      name: Recipe ID
-      description: The ID of the recipe to retrieve
-      required: true
-      selector:
-        text:
-
-list_recipes:
-  name: List Recipes
-  description: List all recipes in the collection

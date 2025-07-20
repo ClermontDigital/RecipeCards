@@ -3,7 +3,7 @@ import { customElement } from 'lit/decorators.js';
 
 interface RecipeCardsConfig {
   type: string;
-  recipe_id?: string;
+  entity: string;
   title?: string;
 }
 
@@ -225,41 +225,41 @@ export class RecipeCardsCard extends LitElement {
   `;
 
   setConfig(config: RecipeCardsConfig) {
-    if (!config.type) {
-      throw new Error('Card config requires type');
+    if (!config.entity) {
+      throw new Error('You need to define an entity');
     }
     this.config = config;
-    this.loadRecipes();
   }
 
-  private async loadRecipes() {
-    try {
-      this.loading = true;
-      this.error = undefined;
-      this.requestUpdate();
-
-      if (!this.hass) {
-        throw new Error('Home Assistant not available');
-      }
-
-      const recipes = await this.hass.callWS({
-        type: 'recipecards/recipe_list',
-      });
-
-      this.recipes = recipes;
-      
-      if (this.recipes.length > 0) {
-        const targetRecipeId = this.config?.recipe_id || this.recipes[0].id;
-        this.recipe = this.recipes.find(r => r.id === targetRecipeId);
-      }
-      
-      this.loading = false;
-      this.requestUpdate();
-    } catch (err) {
-      this.error = err instanceof Error ? err.message : 'Failed to load recipes';
-      this.loading = false;
-      this.requestUpdate();
+  private updateRecipes() {
+    if (!this.config || !this.hass) {
+      return;
     }
+
+    const entityState = this.hass.states[this.config.entity];
+
+    if (!entityState) {
+      this.error = `Entity not found: ${this.config.entity}`;
+      this.loading = false;
+      this.requestUpdate();
+      return;
+    }
+
+    this.recipes = entityState.attributes.recipes || [];
+    if (this.recipes.length > 0 && !this.recipe) {
+      this.recipe = this.recipes[0];
+    }
+    
+    this.loading = false;
+    this.error = undefined;
+    this.requestUpdate();
+  }
+
+  protected shouldUpdate(changedProps: Map<string | number | symbol, unknown>): boolean {
+    if (changedProps.has('hass')) {
+      this.updateRecipes();
+    }
+    return true;
   }
 
   private switchRecipe(recipeId: string) {
