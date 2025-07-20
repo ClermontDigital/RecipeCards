@@ -7,7 +7,7 @@ from homeassistant.data_entry_flow import FlowResult
 from .const import DOMAIN
 
 
-class RecipeCardsConfigFlow(config_entries.ConfigFlow):
+class RecipeCardsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Recipe Cards."""
 
     VERSION = 1

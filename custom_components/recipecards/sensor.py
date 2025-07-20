@@ -1,5 +1,6 @@
 """Sensor platform for Recipe Cards integration."""
 from __future__ import annotations
+
 import logging
 from typing import Any
 
@@ -14,6 +15,7 @@ from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
+
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: ConfigEntry,
@@ -25,12 +27,13 @@ async def async_setup_entry(
     
     async_add_entities([RecipeCardsSensor(coordinator, config_entry)])
 
+
 class RecipeCardsSensor(CoordinatorEntity, SensorEntity):
     """Recipe Cards sensor entity."""
 
     def __init__(
         self,
-        coordinator: CoordinatorEntity,
+        coordinator,
         config_entry: ConfigEntry,
     ) -> None:
         """Initialize the sensor."""
