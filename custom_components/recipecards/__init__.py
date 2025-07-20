@@ -8,9 +8,6 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from .const import DOMAIN
 from .storage import RecipeStorage
 
-# Import config flow to register it
-from . import config_flow
-
 
 PLATFORMS = ["sensor"]
 
