@@ -39,7 +39,7 @@ class RecipeCardsSensor(CoordinatorEntity, SensorEntity):
         """Initialize the sensor."""
         super().__init__(coordinator)
         self._config_entry = config_entry
-        self._attr_name = f"Recipes: {config_entry.data.get('name', 'Unnamed List')}"
+        self._attr_name = "Recipe Cards"
         self._attr_unique_id = f"{config_entry.entry_id}_recipe_count"
         self._attr_icon = "mdi:notebook"
 
@@ -48,7 +48,7 @@ class RecipeCardsSensor(CoordinatorEntity, SensorEntity):
         """Return device information."""
         return DeviceInfo(
             identifiers={(DOMAIN, self._config_entry.entry_id)},
-            name=f"Recipe List: {self._config_entry.data.get('name', 'Unnamed List')}",
+            name="Recipe Cards",
             manufacturer="ClermontDigital",
         )
 

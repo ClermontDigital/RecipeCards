@@ -1,7 +1,6 @@
 """Config flow for Recipe Cards integration."""
 from __future__ import annotations
 
-import logging
 from typing import Any
 
 import voluptuous as vol
@@ -11,10 +10,8 @@ from homeassistant.data_entry_flow import FlowResult
 
 from .const import DOMAIN
 
-_LOGGER = logging.getLogger(__name__)
 
-
-class RecipeCardsConfigFlow(config_entries.ConfigFlow):
+class RecipeCardsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Recipe Cards."""
 
     VERSION = 1
@@ -30,7 +27,6 @@ class RecipeCardsConfigFlow(config_entries.ConfigFlow):
             return self.async_show_form(
                 step_id="user",
                 data_schema=vol.Schema({}),
-                description="Recipe Cards integration for storing and displaying recipes in a retro card interface. Click Submit to complete setup."
             )
 
         return self.async_create_entry(

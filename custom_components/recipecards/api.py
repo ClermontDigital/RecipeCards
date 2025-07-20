@@ -18,9 +18,9 @@ RECIPE_DELETE_TYPE = "recipecards/recipe_delete"
 
 async def _update_coordinator(hass: HomeAssistant) -> None:
     """Update the data coordinator to refresh sensors."""
-    for key, value in hass.data[DOMAIN].items():
-        if key.endswith("_coordinator"):
-            await value.async_request_refresh()
+    for entry_id, entry_data in hass.data[DOMAIN].items():
+        if isinstance(entry_data, dict) and "coordinator" in entry_data:
+            await entry_data["coordinator"].async_request_refresh()
 
 @websocket_api.websocket_command({
     "type": RECIPE_LIST_TYPE,
@@ -33,7 +33,14 @@ async def async_list_recipes(hass: HomeAssistant, connection: websocket_api.Acti
         return
     
     # Get the first available storage instance
-    storage = next(iter(value for key, value in hass.data[DOMAIN].items() if not key.endswith("_coordinator")))
+    storage = None
+    for entry_id, entry_data in hass.data[DOMAIN].items():
+        if isinstance(entry_data, dict) and "storage" in entry_data:
+            storage = entry_data["storage"]
+            break
+    if not storage:
+        connection.send_error(msg["id"], "not_found", "No storage instance found")
+        return
     recipes = await storage.async_load_recipes()
     connection.send_result(msg["id"], [r.to_dict() for r in recipes])
 
@@ -48,7 +55,14 @@ async def async_get_recipe(hass: HomeAssistant, connection: websocket_api.Active
         return
     
     # Get the first available storage instance
-    storage = next(iter(value for key, value in hass.data[DOMAIN].items() if not key.endswith("_coordinator")))
+    storage = None
+    for entry_id, entry_data in hass.data[DOMAIN].items():
+        if isinstance(entry_data, dict) and "storage" in entry_data:
+            storage = entry_data["storage"]
+            break
+    if not storage:
+        connection.send_error(msg["id"], "not_found", "No storage instance found")
+        return
     recipe_id = msg["recipe_id"]
     recipes = await storage.async_load_recipes()
     for recipe in recipes:
@@ -68,7 +82,14 @@ async def async_add_recipe(hass: HomeAssistant, connection: websocket_api.Active
         return
     
     # Get the first available storage instance
-    storage = next(iter(value for key, value in hass.data[DOMAIN].items() if not key.endswith("_coordinator")))
+    storage = None
+    for entry_id, entry_data in hass.data[DOMAIN].items():
+        if isinstance(entry_data, dict) and "storage" in entry_data:
+            storage = entry_data["storage"]
+            break
+    if not storage:
+        connection.send_error(msg["id"], "not_found", "No storage instance found")
+        return
     data = msg["recipe"]
     recipe = Recipe.from_dict(data)
     await storage.async_add_recipe(recipe)
@@ -89,7 +110,14 @@ async def async_update_recipe(hass: HomeAssistant, connection: websocket_api.Act
         return
     
     # Get the first available storage instance
-    storage = next(iter(value for key, value in hass.data[DOMAIN].items() if not key.endswith("_coordinator")))
+    storage = None
+    for entry_id, entry_data in hass.data[DOMAIN].items():
+        if isinstance(entry_data, dict) and "storage" in entry_data:
+            storage = entry_data["storage"]
+            break
+    if not storage:
+        connection.send_error(msg["id"], "not_found", "No storage instance found")
+        return
     recipe_id = msg["recipe_id"]
     data = msg["recipe"]
     updated_recipe = Recipe.from_dict(data)
@@ -111,7 +139,14 @@ async def async_delete_recipe(hass: HomeAssistant, connection: websocket_api.Act
         return
     
     # Get the first available storage instance
-    storage = next(iter(value for key, value in hass.data[DOMAIN].items() if not key.endswith("_coordinator")))
+    storage = None
+    for entry_id, entry_data in hass.data[DOMAIN].items():
+        if isinstance(entry_data, dict) and "storage" in entry_data:
+            storage = entry_data["storage"]
+            break
+    if not storage:
+        connection.send_error(msg["id"], "not_found", "No storage instance found")
+        return
     recipe_id = msg["recipe_id"]
     await storage.async_delete_recipe(recipe_id)
     await _update_coordinator(hass)
