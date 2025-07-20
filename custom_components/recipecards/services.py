@@ -59,10 +59,18 @@ def _get_storage(hass: HomeAssistant):
     if DOMAIN not in hass.data:
         return None
     
-    # Get the first available storage instance
-    for storage in hass.data[DOMAIN].values():
-        return storage
+    # Get the first available storage instance (excluding coordinator)
+    for key, value in hass.data[DOMAIN].items():
+        if not key.endswith("_coordinator"):
+            return value
     return None
+
+
+async def _update_coordinator(hass: HomeAssistant) -> None:
+    """Update the data coordinator to refresh sensors."""
+    for key, value in hass.data[DOMAIN].items():
+        if key.endswith("_coordinator"):
+            await value.async_request_refresh()
 
 
 async def async_add_recipe(hass: HomeAssistant, call: ServiceCall) -> None:
@@ -91,6 +99,7 @@ async def async_add_recipe(hass: HomeAssistant, call: ServiceCall) -> None:
     )
     
     await storage.async_add_recipe(recipe)
+    await _update_coordinator(hass)
     _LOGGER.info("Added recipe: %s", recipe.title)
 
 
@@ -140,6 +149,7 @@ async def async_update_recipe(hass: HomeAssistant, call: ServiceCall) -> None:
     )
     
     await storage.async_update_recipe(recipe_id, updated_recipe)
+    await _update_coordinator(hass)
     _LOGGER.info("Updated recipe: %s", recipe_id)
 
 
@@ -152,6 +162,7 @@ async def async_delete_recipe(hass: HomeAssistant, call: ServiceCall) -> None:
     
     recipe_id = call.data[ATTR_RECIPE_ID]
     await storage.async_delete_recipe(recipe_id)
+    await _update_coordinator(hass)
     _LOGGER.info("Deleted recipe: %s", recipe_id)
 
 

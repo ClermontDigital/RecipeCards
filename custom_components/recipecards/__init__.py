@@ -4,12 +4,11 @@ from homeassistant.core import HomeAssistant
 from .const import DOMAIN
 from .storage import RecipeStorage
 from .api import register_api
-from .services import register_services
 
 # Import config flow to register it
 from . import config_flow
 
-PLATFORMS = []
+PLATFORMS = ["sensor"]
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Set up the Recipe Cards component."""
@@ -18,11 +17,19 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Recipe Cards from a config entry."""
     hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = RecipeStorage(hass, entry.entry_id)
+    storage = RecipeStorage(hass, entry.entry_id)
+    hass.data[DOMAIN][entry.entry_id] = storage
     
-    # Register the API and services
+    # Register the API
     register_api(hass)
-    await register_services(hass)
+    
+    # Register services (only once)
+    if not hass.services.has_service(DOMAIN, "add_recipe"):
+        from .services import register_services
+        await register_services(hass)
+    
+    # Set up platforms
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     
     return True
 

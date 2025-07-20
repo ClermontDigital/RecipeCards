@@ -15,6 +15,13 @@ RECIPE_ADD_TYPE = "recipecards/recipe_add"
 RECIPE_UPDATE_TYPE = "recipecards/recipe_update"
 RECIPE_DELETE_TYPE = "recipecards/recipe_delete"
 
+
+async def _update_coordinator(hass: HomeAssistant) -> None:
+    """Update the data coordinator to refresh sensors."""
+    for key, value in hass.data[DOMAIN].items():
+        if key.endswith("_coordinator"):
+            await value.async_request_refresh()
+
 @websocket_api.websocket_command({
     "type": RECIPE_LIST_TYPE,
     "schema": websocket_api.BASE_COMMAND_MESSAGE_SCHEMA,
@@ -26,7 +33,7 @@ async def async_list_recipes(hass: HomeAssistant, connection: websocket_api.Acti
         return
     
     # Get the first available storage instance
-    storage = next(iter(hass.data[DOMAIN].values()))
+    storage = next(iter(value for key, value in hass.data[DOMAIN].items() if not key.endswith("_coordinator")))
     recipes = await storage.async_load_recipes()
     connection.send_result(msg["id"], [r.to_dict() for r in recipes])
 
@@ -41,7 +48,7 @@ async def async_get_recipe(hass: HomeAssistant, connection: websocket_api.Active
         return
     
     # Get the first available storage instance
-    storage = next(iter(hass.data[DOMAIN].values()))
+    storage = next(iter(value for key, value in hass.data[DOMAIN].items() if not key.endswith("_coordinator")))
     recipe_id = msg["recipe_id"]
     recipes = await storage.async_load_recipes()
     for recipe in recipes:
@@ -61,10 +68,14 @@ async def async_add_recipe(hass: HomeAssistant, connection: websocket_api.Active
         return
     
     # Get the first available storage instance
-    storage = next(iter(hass.data[DOMAIN].values()))
+    storage = next(iter(value for key, value in hass.data[DOMAIN].items() if not key.endswith("_coordinator")))
     data = msg["recipe"]
     recipe = Recipe.from_dict(data)
     await storage.async_add_recipe(recipe)
+    
+    # Update coordinator
+    await _update_coordinator(hass)
+    
     connection.send_result(msg["id"], recipe.to_dict())
 
 @websocket_api.websocket_command({
@@ -78,12 +89,13 @@ async def async_update_recipe(hass: HomeAssistant, connection: websocket_api.Act
         return
     
     # Get the first available storage instance
-    storage = next(iter(hass.data[DOMAIN].values()))
+    storage = next(iter(value for key, value in hass.data[DOMAIN].items() if not key.endswith("_coordinator")))
     recipe_id = msg["recipe_id"]
     data = msg["recipe"]
     updated_recipe = Recipe.from_dict(data)
     ok = await storage.async_update_recipe(recipe_id, updated_recipe)
     if ok:
+        await _update_coordinator(hass)
         connection.send_result(msg["id"], updated_recipe.to_dict())
     else:
         connection.send_error(msg["id"], "not_found", "Recipe not found")
@@ -99,9 +111,10 @@ async def async_delete_recipe(hass: HomeAssistant, connection: websocket_api.Act
         return
     
     # Get the first available storage instance
-    storage = next(iter(hass.data[DOMAIN].values()))
+    storage = next(iter(value for key, value in hass.data[DOMAIN].items() if not key.endswith("_coordinator")))
     recipe_id = msg["recipe_id"]
     await storage.async_delete_recipe(recipe_id)
+    await _update_coordinator(hass)
     connection.send_result(msg["id"], True)
 
 def register_api(hass: HomeAssistant) -> None:
