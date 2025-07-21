@@ -2,7 +2,7 @@
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![HACS Badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/custom-components/hacs)
-[![Version](https://img.shields.io/badge/version-1.0.27-green.svg)](https://github.com/ClermontDigital/RecipeCards)
+[![Version](https://img.shields.io/badge/version-1.1.0-green.svg)](https://github.com/ClermontDigital/RecipeCards)
 
 Retro-style recipe card management for Home Assistant. Store, browse, and display recipes in a classic 80s-inspired card interface with flip animations and persistent storage.
 
@@ -45,15 +45,14 @@ Retro-style recipe card management for Home Assistant. Store, browse, and displa
 ### Entities Created
 - `sensor.recipe_cards` - Shows total number of stored recipes with recipe data in attributes
 
-### Recipe Management Services
+### Easy Recipe Management
 
-RecipeCards provides three main services for recipe management:
+RecipeCards now provides **simplified** recipe management - no config entry IDs needed!
 
-**Add Recipe:**
+**Add Recipe (Simple):**
 ```yaml
 service: recipecards.add_recipe
 data:
-  config_entry_id: "your-config-entry-id"  # See below for how to find this
   title: "Chocolate Chip Cookies"
   description: "Classic homemade cookies"
   ingredients:
@@ -72,7 +71,6 @@ data:
 ```yaml
 service: recipecards.update_recipe
 data:
-  config_entry_id: "your-config-entry-id"
   recipe_id: "your-recipe-id"
   title: "Updated Chocolate Chip Cookies"
   description: "Improved recipe with better ingredients"
@@ -83,217 +81,123 @@ data:
 ```yaml
 service: recipecards.delete_recipe
 data:
-  config_entry_id: "your-config-entry-id"
   recipe_id: "your-recipe-id"
 ```
 
-#### Finding Your Config Entry ID
-1. Go to Settings → Devices & Services
-2. Find "Recipe Cards" integration
-3. Click on it to see the entity
-4. The config entry ID is in the entity details
+> **Note:** Config entry IDs are now auto-detected! You only need to specify `config_entry_id` if you have multiple RecipeCards integrations.
 
-### Using Services
+### New Recipe Collection View
 
-**Developer Tools - Actions:**
-1. Go to Developer Tools → Actions
-2. Choose any `recipecards.*` service
-3. Fill in the form with your recipe details
-4. Use the UI selectors to pick your config entry and enter recipe data
+The RecipeCards card now features two modes:
 
-### Lovelace Dashboard with Buttons
+1. **Collection View (Default)**: Browse all recipes as colored tiles with built-in add/edit/delete functionality
+2. **Detail View**: Classic single-recipe card with flip animation
 
-Here's a complete example dashboard with buttons to add recipes and display them:
-
-```yaml
-type: vertical-stack
-cards:
-  # Recipe Display Card
-  - type: custom:recipecards-card
-    entity: sensor.recipe_cards
-    title: "My Recipe Collection"
-  
-  # Add Recipe Buttons
-  - type: horizontal-stack
-    cards:
-      - type: button
-        name: "Add Breakfast Recipe"
-        icon: mdi:egg-fried
-        tap_action:
-          action: call-service
-          service: recipecards.add_recipe
-          service_data:
-            config_entry_id: "your-config-entry-id"  # Replace with your actual ID
-            title: "Scrambled Eggs"
-            description: "Quick breakfast option"
-            ingredients:
-              - "3 eggs"
-              - "2 tbsp butter"
-              - "Salt and pepper"
-            instructions:
-              - "Beat eggs in a bowl"
-              - "Heat butter in pan"
-              - "Add eggs and scramble gently"
-              - "Season to taste"
-            color: "#FFD700"
-      
-      - type: button
-        name: "Add Dessert Recipe"
-        icon: mdi:cupcake
-        tap_action:
-          action: call-service
-          service: recipecards.add_recipe
-          service_data:
-            config_entry_id: "your-config-entry-id"  # Replace with your actual ID
-            title: "Chocolate Cake"
-            description: "Rich chocolate dessert"
-            ingredients:
-              - "2 cups flour"
-              - "1 cup cocoa powder"
-              - "2 cups sugar"
-              - "3 eggs"
-            instructions:
-              - "Mix dry ingredients"
-              - "Add eggs and mix well"
-              - "Bake at 350°F for 30 minutes"
-            color: "#8B4513"
-  
-  # Recipe Management
-  - type: entities
-    title: "Recipe Management"
-    entities:
-      - sensor.recipe_cards
-    card_mod:
-      style: |
-        ha-card {
-          --mdc-icon-size: 20px;
-        }
-```
-
-### Lovelace Card Configuration
-
-**Basic Recipe Display:**
+**Basic Setup:**
 ```yaml
 type: custom:recipecards-card
 entity: sensor.recipe_cards
+title: "My Recipe Collection"
+```
+
+**Force Detail View:**
+```yaml
+type: custom:recipecards-card
+entity: sensor.recipe_cards
+view: detail
+```
+
+### Recipe Management Features
+
+- **➕ Add Recipes**: Click the + button in collection view
+- **✏️ Edit Recipes**: Click "Edit" on any recipe tile  
+- **🗑️ Delete Recipes**: Click "Delete" on any recipe tile
+- **🎨 Color Coding**: Each recipe has a customizable color header
+- **📊 Recipe Info**: See ingredient count and step count at a glance
+- **⌨️ Keyboard Navigation**: Full keyboard accessibility support
+- **📱 Responsive**: Works on desktop and mobile
+
+### Using Developer Tools (Optional)
+
+For automation or advanced usage:
+1. Go to Developer Tools → Actions
+2. Choose any `recipecards.*` service
+3. Fill in the form (config entry ID is now optional)
+
+### Card Configuration Options
+
+**Collection View (Default):**
+```yaml
+type: custom:recipecards-card
+entity: sensor.recipe_cards
+title: "My Recipes"  # Optional custom title
+```
+
+**Detail View (Classic):**
+```yaml
+type: custom:recipecards-card
+entity: sensor.recipe_cards
+view: detail
 ```
 
 **Card Features:**
-- **Tab Navigation**: Click recipe titles in the tab bar to switch between recipes
-- **Flip Animation**: Click the card or "Flip for Instructions" button to see cooking instructions
+- **Collection View**: Grid of colored recipe tiles, built-in add/edit/delete
+- **Detail View**: Tab navigation and flip animation for instructions  
 - **Responsive Design**: Works on desktop and mobile devices
 - **Loading States**: Shows loading indicators while fetching recipe data
-
-## How to Get Your Config Entry ID
-
-To use the services, you need your config entry ID:
-
-1. **Via UI:**
-   - Go to Settings → Devices & Services
-   - Find "Recipe Cards" integration
-   - Click on the entity name (e.g., "Recipe Cards")
-   - Look in the entity details for the config entry ID
-
-2. **Via Developer Tools:**
-   - Go to Developer Tools → States
-   - Find your `sensor.recipe_cards` entity
-   - The config entry ID is visible in the entity attributes
-
-3. **Using the Service UI:**
-   - Go to Developer Tools → Actions
-   - Select `recipecards.add_recipe`
-   - The config entry selector will show available integrations
+- **Color Coding**: Each recipe has a customizable header color
 
 ## Quick Start Guide
 
 1. **Install & Setup:**
    - Install via HACS or manually
-   - Add the Recipe Cards integration
-   - Note your config entry ID
+   - Add the Recipe Cards integration (no configuration needed)
 
-2. **Add Your First Recipe:**
-   - Go to Developer Tools → Actions
-   - Choose `recipecards.add_recipe`
-   - Fill in the form and submit
-
-3. **Add the Lovelace Card:**
+2. **Add the Lovelace Card:**
    ```yaml
    type: custom:recipecards-card
    entity: sensor.recipe_cards
    ```
 
-4. **Create Dashboard Buttons:**
-   - Use the example configuration above
-   - Replace `your-config-entry-id` with your actual ID
-   - Customize the recipes in the buttons
+3. **Start Adding Recipes:**
+   - Click the **+** button in the collection view
+   - Fill in the recipe form and save
+   - Your recipes appear as colored tiles
 
-## UI Flows for Adding Recipes
+4. **Manage Recipes:**
+   - **View**: Click any recipe tile to see full details
+   - **Edit**: Click "Edit" on any recipe tile
+   - **Delete**: Click "Delete" on any recipe tile
 
-### Method 1: Simple Developer Tools (Easiest)
-Add this button to navigate to Developer Tools:
+## Recipe Management Methods
+
+### Method 1: Built-in UI (Recommended)
+The easiest way to manage recipes:
+- **Add**: Click the + button in collection view
+- **Edit**: Click "Edit" on any recipe tile
+- **Delete**: Click "Delete" on any recipe tile
+- **View**: Click any recipe tile or switch to detail view
+
+### Method 2: Developer Tools (For Automation)
+For creating automations or scripts:
+1. Go to Developer Tools → Actions
+2. Choose `recipecards.add_recipe`
+3. Fill the form (no config entry ID needed)
+
+### Method 3: Service Calls (Advanced)
+Use in automations or scripts:
 ```yaml
-type: button
-name: "Add New Recipe"
-icon: mdi:plus-circle
-tap_action:
-  action: navigate
-  navigation_path: "/developer-tools/service"
-```
-
-### Method 2: Input Helper Form (Recommended)
-**Step 1:** Create input helpers in Settings → Devices & Services → Helpers:
-- `input_text.recipe_title` (max: 100)
-- `input_text.recipe_description` (max: 200)  
-- `input_text.recipe_ingredients` (mode: text)
-- `input_text.recipe_instructions` (mode: text)
-- `input_text.recipe_notes` (max: 300)
-
-**Step 2:** Add this form to your dashboard:
-```yaml
-type: vertical-stack
-cards:
-  # Recipe Form
-  - type: entities
-    title: "Add New Recipe"
-    entities:
-      - input_text.recipe_title
-      - input_text.recipe_description
-      - input_text.recipe_ingredients
-      - input_text.recipe_instructions
-      - input_text.recipe_notes
-  
-  # Submit Button
-  - type: button
-    name: "Save Recipe"
-    icon: mdi:content-save
-    tap_action:
-      action: call-service
-      service: recipecards.add_recipe
-      service_data:
-        config_entry_id: "your-config-entry-id"
-        title: "{{ states('input_text.recipe_title') }}"
-        description: "{{ states('input_text.recipe_description') }}"
-        ingredients: "{{ states('input_text.recipe_ingredients').split('\n') }}"
-        instructions: "{{ states('input_text.recipe_instructions').split('\n') }}"
-        notes: "{{ states('input_text.recipe_notes') }}"
-        color: "#FFD700"
-  
-  # Clear Form Button
-  - type: button
-    name: "Clear Form"
-    icon: mdi:eraser
-    tap_action:
-      action: call-service
-      service: input_text.set_value
-      target:
-        entity_id:
-          - input_text.recipe_title
-          - input_text.recipe_description
-          - input_text.recipe_ingredients
-          - input_text.recipe_instructions
-          - input_text.recipe_notes
-      service_data:
-        value: ""
+service: recipecards.add_recipe
+data:
+  title: "My Recipe"
+  description: "A delicious recipe"
+  ingredients:
+    - "Ingredient 1"
+    - "Ingredient 2"
+  instructions:
+    - "Step 1"
+    - "Step 2"
+  color: "#FF6B35"
 ```
 
 ## Troubleshooting

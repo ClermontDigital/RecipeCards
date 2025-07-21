@@ -23,7 +23,7 @@ ATTR_RECIPE_ID = "recipe_id"
 ATTR_CONFIG_ENTRY_ID = "config_entry_id"
 
 ADD_RECIPE_SCHEMA = vol.Schema({
-    vol.Required(ATTR_CONFIG_ENTRY_ID): cv.string,
+    vol.Optional(ATTR_CONFIG_ENTRY_ID): cv.string,  # Made optional for auto-detection
     vol.Required(ATTR_TITLE): cv.string,
     vol.Optional(ATTR_DESCRIPTION, default=""): cv.string,
     vol.Optional(ATTR_INGREDIENTS, default=[]): vol.All(cv.ensure_list, [cv.string]),
@@ -33,7 +33,7 @@ ADD_RECIPE_SCHEMA = vol.Schema({
 })
 
 UPDATE_RECIPE_SCHEMA = vol.Schema({
-    vol.Required(ATTR_CONFIG_ENTRY_ID): cv.string,
+    vol.Optional(ATTR_CONFIG_ENTRY_ID): cv.string,  # Made optional for auto-detection
     vol.Required(ATTR_RECIPE_ID): cv.string,
     vol.Optional(ATTR_TITLE): cv.string,
     vol.Optional(ATTR_DESCRIPTION): cv.string,
@@ -44,25 +44,39 @@ UPDATE_RECIPE_SCHEMA = vol.Schema({
 })
 
 DELETE_RECIPE_SCHEMA = vol.Schema({
-    vol.Required(ATTR_CONFIG_ENTRY_ID): cv.string,
+    vol.Optional(ATTR_CONFIG_ENTRY_ID): cv.string,  # Made optional for auto-detection
     vol.Required(ATTR_RECIPE_ID): cv.string,
 })
 
-def _get_storage_and_coordinator(hass: HomeAssistant, config_entry_id: str):
-    """Get the storage and coordinator for a specific config entry."""
-    if DOMAIN not in hass.data or config_entry_id not in hass.data[DOMAIN]:
+def _get_storage_and_coordinator(hass: HomeAssistant, config_entry_id: str = None):
+    """Get the storage and coordinator for a specific config entry or auto-detect."""
+    if DOMAIN not in hass.data:
         return None, None
     
-    entry_data = hass.data[DOMAIN][config_entry_id]
-    return entry_data.get("storage"), entry_data.get("coordinator")
+    # If config_entry_id is provided, use it directly
+    if config_entry_id and config_entry_id in hass.data[DOMAIN]:
+        entry_data = hass.data[DOMAIN][config_entry_id]
+        return entry_data.get("storage"), entry_data.get("coordinator")
+    
+    # Auto-detect: find the first available config entry
+    for entry_id, entry_data in hass.data[DOMAIN].items():
+        storage = entry_data.get("storage")
+        coordinator = entry_data.get("coordinator")
+        if storage and coordinator:
+            return storage, coordinator
+    
+    return None, None
 
 async def async_add_recipe(call: ServiceCall) -> None:
     """Handle add recipe service call."""
-    config_entry_id = call.data[ATTR_CONFIG_ENTRY_ID]
+    config_entry_id = call.data.get(ATTR_CONFIG_ENTRY_ID)
     storage, coordinator = _get_storage_and_coordinator(call.hass, config_entry_id)
     
     if not storage or not coordinator:
-        _LOGGER.error(f"Recipe list with ID '{config_entry_id}' not found.")
+        if config_entry_id:
+            _LOGGER.error(f"Recipe list with ID '{config_entry_id}' not found.")
+        else:
+            _LOGGER.error("No RecipeCards integration found. Please add the integration first.")
         return
     
     recipe_id = str(uuid.uuid4())
@@ -86,11 +100,14 @@ async def async_add_recipe(call: ServiceCall) -> None:
 
 async def async_update_recipe(call: ServiceCall) -> None:
     """Handle update recipe service call."""
-    config_entry_id = call.data[ATTR_CONFIG_ENTRY_ID]
+    config_entry_id = call.data.get(ATTR_CONFIG_ENTRY_ID)
     storage, coordinator = _get_storage_and_coordinator(call.hass, config_entry_id)
 
     if not storage or not coordinator:
-        _LOGGER.error(f"Recipe list with ID '{config_entry_id}' not found.")
+        if config_entry_id:
+            _LOGGER.error(f"Recipe list with ID '{config_entry_id}' not found.")
+        else:
+            _LOGGER.error("No RecipeCards integration found. Please add the integration first.")
         return
 
     recipe_id = call.data[ATTR_RECIPE_ID]
@@ -116,11 +133,14 @@ async def async_update_recipe(call: ServiceCall) -> None:
 
 async def async_delete_recipe(call: ServiceCall) -> None:
     """Handle delete recipe service call."""
-    config_entry_id = call.data[ATTR_CONFIG_ENTRY_ID]
+    config_entry_id = call.data.get(ATTR_CONFIG_ENTRY_ID)
     storage, coordinator = _get_storage_and_coordinator(call.hass, config_entry_id)
 
     if not storage or not coordinator:
-        _LOGGER.error(f"Recipe list with ID '{config_entry_id}' not found.")
+        if config_entry_id:
+            _LOGGER.error(f"Recipe list with ID '{config_entry_id}' not found.")
+        else:
+            _LOGGER.error("No RecipeCards integration found. Please add the integration first.")
         return
     
     recipe_id = call.data[ATTR_RECIPE_ID]

@@ -5,6 +5,7 @@ interface RecipeCardsConfig {
   type: string;
   entity: string;
   title?: string;
+  view?: 'collection' | 'detail';
 }
 
 interface Recipe {
@@ -33,6 +34,10 @@ export class RecipeCardsCard extends LitElement {
   private recipes: Recipe[] = [];
   private loading = true;
   private error?: string;
+  private currentView: 'collection' | 'detail' = 'collection';
+  private showAddModal = false;
+  private showEditModal = false;
+  private editingRecipe?: Recipe;
 
   static styles = css`
     :host {
@@ -209,6 +214,247 @@ export class RecipeCardsCard extends LitElement {
       text-align: center;
       padding: 1em;
     }
+    /* Collection View Styles */
+    .collection-container {
+      padding: 1em;
+      background: #fffbe6;
+      border: 2px solid #bfa14a;
+      border-radius: var(--card-radius);
+      min-height: 300px;
+    }
+    .collection-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1em;
+      padding-bottom: 0.5em;
+      border-bottom: 1px solid #bfa14a;
+    }
+    .collection-title {
+      font-size: 1.4em;
+      font-weight: bold;
+      color: #bfa14a;
+    }
+    .add-recipe-btn {
+      background: #bfa14a;
+      color: #fffbe6;
+      border: none;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      font-size: 1.5em;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+    .add-recipe-btn:hover {
+      background: #a68c3a;
+    }
+    .recipes-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 1em;
+      margin-top: 1em;
+    }
+    .recipe-tile {
+      background: #fffbe6;
+      border: 2px solid #bfa14a;
+      border-radius: 12px;
+      padding: 1em;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+      position: relative;
+      min-height: 120px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .recipe-tile:hover, .recipe-tile:focus {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+      outline: 2px solid #bfa14a;
+      outline-offset: 2px;
+    }
+    .recipe-tile-header {
+      padding: 0.5em;
+      border-radius: 8px 8px 0 0;
+      margin: -1em -1em 0.5em -1em;
+      color: white;
+      font-weight: bold;
+      position: relative;
+    }
+    .recipe-tile-title {
+      font-size: 1.1em;
+      margin-bottom: 0.2em;
+    }
+    .recipe-tile-desc {
+      font-size: 0.9em;
+      opacity: 0.9;
+    }
+    .recipe-tile-info {
+      color: #7c6f3a;
+      font-size: 0.8em;
+      margin: 0.5em 0;
+      padding: 0.3em;
+      background: rgba(191, 161, 74, 0.1);
+      border-radius: 4px;
+      text-align: center;
+    }
+    .recipe-tile-actions {
+      display: flex;
+      gap: 0.5em;
+      margin-top: 0.5em;
+    }
+    .recipe-action-btn {
+      background: none;
+      border: 1px solid #bfa14a;
+      color: #bfa14a;
+      border-radius: 4px;
+      padding: 0.3em 0.6em;
+      font-size: 0.8em;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .recipe-action-btn:hover {
+      background: #bfa14a;
+      color: #fffbe6;
+    }
+    .recipe-action-btn.delete:hover {
+      background: #d32f2f;
+      border-color: #d32f2f;
+    }
+
+    /* Modal Styles */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .modal {
+      background: #fffbe6;
+      border: 2px solid #bfa14a;
+      border-radius: var(--card-radius);
+      padding: 1.5em;
+      max-width: 500px;
+      width: 90vw;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1em;
+      padding-bottom: 0.5em;
+      border-bottom: 1px solid #bfa14a;
+    }
+    .modal-title {
+      font-size: 1.3em;
+      font-weight: bold;
+      color: #bfa14a;
+    }
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 1.5em;
+      color: #bfa14a;
+      cursor: pointer;
+    }
+    .form-group {
+      margin-bottom: 1em;
+    }
+    .form-label {
+      display: block;
+      margin-bottom: 0.3em;
+      font-weight: bold;
+      color: #7c6f3a;
+    }
+    .form-input, .form-textarea {
+      width: 100%;
+      padding: 0.5em;
+      border: 1px solid #bfa14a;
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: 1em;
+      background: #fffbe6;
+    }
+    .form-textarea {
+      min-height: 80px;
+      resize: vertical;
+    }
+    .color-picker {
+      display: flex;
+      gap: 0.5em;
+      flex-wrap: wrap;
+      margin-top: 0.5em;
+    }
+    .color-option {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+    .color-option.selected {
+      border-color: #333;
+    }
+    .modal-actions {
+      display: flex;
+      gap: 1em;
+      justify-content: flex-end;
+      margin-top: 1.5em;
+    }
+    .btn {
+      padding: 0.7em 1.5em;
+      border: none;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 1em;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-primary {
+      background: #bfa14a;
+      color: #fffbe6;
+    }
+    .btn-primary:hover {
+      background: #a68c3a;
+    }
+    .btn-secondary {
+      background: #f5f0d6;
+      color: #7c6f3a;
+      border: 1px solid #bfa14a;
+    }
+    .btn-secondary:hover {
+      background: #e8e0c0;
+    }
+
+    /* Back button for detail view */
+    .back-btn {
+      background: #f5f0d6;
+      color: #7c6f3a;
+      border: 1px solid #bfa14a;
+      border-radius: 6px;
+      padding: 0.5em 1em;
+      font-family: inherit;
+      cursor: pointer;
+      margin-bottom: 1em;
+      transition: background 0.2s;
+    }
+    .back-btn:hover {
+      background: #e8e0c0;
+    }
+
     @media (max-width: 400px) {
       :host {
         --card-width: 98vw;
@@ -221,6 +467,13 @@ export class RecipeCardsCard extends LitElement {
         width: 100%;
         height: var(--card-height);
       }
+      .recipes-grid {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      }
+      .modal {
+        width: 95vw;
+        padding: 1em;
+      }
     }
   `;
 
@@ -229,6 +482,7 @@ export class RecipeCardsCard extends LitElement {
       throw new Error('You need to define an entity');
     }
     this.config = config;
+    this.currentView = config.view || 'collection';
   }
 
   private updateRecipes() {
@@ -274,63 +528,162 @@ export class RecipeCardsCard extends LitElement {
     this.requestUpdate();
   }
 
-  render() {
-    if (this.loading) {
-      return html`
-        <div class="container">
-          <div class="tab-bar">
-            <div class="tab active">Loading...</div>
-          </div>
-          <div class="card-container">
-            <div class="card">
-              <div class="face front">
-                <div class="loading">Loading recipes...</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
-    }
+  private openAddModal() {
+    this.showAddModal = true;
+    this.requestUpdate();
+  }
 
-    if (this.error) {
-      return html`
-        <div class="container">
-          <div class="tab-bar">
-            <div class="tab active">Error</div>
-          </div>
-          <div class="card-container">
-            <div class="card">
-              <div class="face front">
-                <div class="error">${this.error}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
-    }
+  private closeAddModal() {
+    this.showAddModal = false;
+    this.requestUpdate();
+  }
 
+  private openEditModal(recipe: Recipe) {
+    this.editingRecipe = recipe;
+    this.showEditModal = true;
+    this.requestUpdate();
+  }
+
+  private closeEditModal() {
+    this.showEditModal = false;
+    this.editingRecipe = undefined;
+    this.requestUpdate();
+  }
+
+  private async addRecipe(formData: FormData) {
+    const title = formData.get('title') as string;
+    const description = formData.get('description') as string;
+    const ingredients = (formData.get('ingredients') as string).split('\n').filter(i => i.trim());
+    const notes = formData.get('notes') as string;
+    const instructions = (formData.get('instructions') as string).split('\n').filter(i => i.trim());
+    const color = formData.get('color') as string || '#FFD700';
+
+    try {
+      await this.hass.callService('recipecards', 'add_recipe', {
+        title,
+        description,
+        ingredients,
+        notes,
+        instructions,
+        color
+      });
+      this.closeAddModal();
+    } catch (error) {
+      console.error('Failed to add recipe:', error);
+      // Could add error handling UI here
+    }
+  }
+
+  private async updateRecipe(formData: FormData) {
+    if (!this.editingRecipe) return;
+
+    const title = formData.get('title') as string;
+    const description = formData.get('description') as string;
+    const ingredients = (formData.get('ingredients') as string).split('\n').filter(i => i.trim());
+    const notes = formData.get('notes') as string;
+    const instructions = (formData.get('instructions') as string).split('\n').filter(i => i.trim());
+    const color = formData.get('color') as string || '#FFD700';
+
+    try {
+      await this.hass.callService('recipecards', 'update_recipe', {
+        recipe_id: this.editingRecipe.id,
+        title,
+        description,
+        ingredients,
+        notes,
+        instructions,
+        color
+      });
+      this.closeEditModal();
+    } catch (error) {
+      console.error('Failed to update recipe:', error);
+      // Could add error handling UI here
+    }
+  }
+
+  private async deleteRecipe(recipeId: string, e: Event) {
+    e.stopPropagation();
+    if (!confirm('Are you sure you want to delete this recipe?')) return;
+
+    try {
+      await this.hass.callService('recipecards', 'delete_recipe', {
+        recipe_id: recipeId
+      });
+    } catch (error) {
+      console.error('Failed to delete recipe:', error);
+      // Could add error handling UI here
+    }
+  }
+
+  private viewRecipe(recipe: Recipe) {
+    this.recipe = recipe;
+    this.currentView = 'detail';
+    this.flipped = false;
+    this.requestUpdate();
+  }
+
+  private backToCollection() {
+    this.currentView = 'collection';
+    this.requestUpdate();
+  }
+
+  private renderCollectionView() {
     if (this.recipes.length === 0) {
       return html`
-        <div class="container">
-          <div class="tab-bar">
-            <div class="tab active">No Recipes</div>
+        <div class="collection-container">
+          <div class="collection-header">
+            <div class="collection-title">${this.config?.title || 'Recipe Collection'}</div>
+            <button class="add-recipe-btn" @click=${this.openAddModal} title="Add Recipe">+</button>
           </div>
-          <div class="card-container">
-            <div class="card">
-              <div class="face front">
-                <div class="no-recipes">
-                  No recipes found.<br />
-                  Add some recipes to get started!
-                </div>
-              </div>
-            </div>
+          <div class="no-recipes">
+            🍳 Welcome to your Recipe Collection!<br />
+            <br />
+            Click the <strong>+</strong> button above to add your first recipe<br />
+            and start building your digital cookbook.
           </div>
         </div>
       `;
     }
 
     return html`
+      <div class="collection-container">
+        <div class="collection-header">
+          <div class="collection-title">${this.config?.title || 'Recipe Collection'}</div>
+          <button class="add-recipe-btn" @click=${this.openAddModal} title="Add Recipe">+</button>
+        </div>
+        <div class="recipes-grid">
+          ${this.recipes.map(recipe => html`
+            <div class="recipe-tile" @click=${() => this.viewRecipe(recipe)} 
+                 @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.viewRecipe(recipe); } }}
+                 tabindex="0" role="button" aria-label="View recipe: ${recipe.title}">
+              <div class="recipe-tile-header" style="background-color: ${recipe.color}">
+                <div class="recipe-tile-title">${recipe.title}</div>
+                <div class="recipe-tile-desc">${recipe.description}</div>
+              </div>
+              <div class="recipe-tile-info">
+                <small>🥘 ${recipe.ingredients.length} ingredients • 📝 ${recipe.instructions.length} steps</small>
+              </div>
+              <div class="recipe-tile-actions">
+                <button class="recipe-action-btn" @click=${(e: Event) => { e.stopPropagation(); this.openEditModal(recipe); }}>Edit</button>
+                <button class="recipe-action-btn delete" @click=${(e: Event) => this.deleteRecipe(recipe.id, e)}>Delete</button>
+              </div>
+            </div>
+          `)}
+        </div>
+      </div>
+    `;
+  }
+
+  private renderDetailView() {
+    if (!this.recipe) {
+      this.currentView = 'collection';
+      this.requestUpdate();
+      return html``;
+    }
+
+    return html`
       <div class="container">
+        <button class="back-btn" @click=${this.backToCollection}>← Back to Collection</button>
         <div class="tab-bar">
           ${this.recipes.map(recipe => html`
             <button 
@@ -373,6 +726,101 @@ export class RecipeCardsCard extends LitElement {
           </div>
         </div>
       </div>
+    `;
+  }
+
+  private renderRecipeModal(recipe?: Recipe) {
+    const isEdit = !!recipe;
+    const title = isEdit ? 'Edit Recipe' : 'Add Recipe';
+    const colorOptions = ['#FFD700', '#FF6B35', '#E91E63', '#9C27B0', '#673AB7', '#3F51B5', '#2196F3', '#03A9F4', '#00BCD4', '#009688', '#4CAF50', '#8BC34A', '#CDDC39', '#FFC107', '#FF9800', '#FF5722'];
+
+    return html`
+      <div class="modal-overlay" @click=${(e: Event) => { if (e.target === e.currentTarget) { isEdit ? this.closeEditModal() : this.closeAddModal(); } }}>
+        <div class="modal">
+          <div class="modal-header">
+            <div class="modal-title">${title}</div>
+            <button class="modal-close" @click=${isEdit ? this.closeEditModal : this.closeAddModal}>×</button>
+          </div>
+          <form @submit=${(e: Event) => {
+            e.preventDefault();
+            const formData = new FormData(e.target as HTMLFormElement);
+            isEdit ? this.updateRecipe(formData) : this.addRecipe(formData);
+          }}>
+            <div class="form-group">
+              <label class="form-label">Title *</label>
+              <input class="form-input" name="title" type="text" required value="${recipe?.title || ''}" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Description</label>
+              <input class="form-input" name="description" type="text" value="${recipe?.description || ''}" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Ingredients * (one per line)</label>
+              <textarea class="form-textarea" name="ingredients" required>${recipe?.ingredients.join('\n') || ''}</textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Instructions * (one per line)</label>
+              <textarea class="form-textarea" name="instructions" required>${recipe?.instructions.join('\n') || ''}</textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Notes</label>
+              <textarea class="form-textarea" name="notes">${recipe?.notes || ''}</textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Color</label>
+              <input type="hidden" name="color" value="${recipe?.color || '#FFD700'}" />
+              <div class="color-picker">
+                ${colorOptions.map(color => html`
+                  <div 
+                    class="color-option${(recipe?.color || '#FFD700') === color ? ' selected' : ''}" 
+                    style="background-color: ${color}"
+                    @click=${() => {
+                      const input = this.shadowRoot?.querySelector('input[name="color"]') as HTMLInputElement;
+                      if (input) input.value = color;
+                      this.shadowRoot?.querySelectorAll('.color-option').forEach(el => el.classList.remove('selected'));
+                      (this.shadowRoot?.querySelector(`[style*="${color}"]`) as HTMLElement)?.classList.add('selected');
+                    }}
+                  ></div>
+                `)}
+              </div>
+            </div>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-secondary" @click=${isEdit ? this.closeEditModal : this.closeAddModal}>Cancel</button>
+              <button type="submit" class="btn btn-primary">${isEdit ? 'Update' : 'Add'} Recipe</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    `;
+  }
+
+  render() {
+    if (this.loading) {
+      return html`
+        <div class="collection-container">
+          <div class="collection-header">
+            <div class="collection-title">Loading...</div>
+          </div>
+          <div class="loading">Loading recipes...</div>
+        </div>
+      `;
+    }
+
+    if (this.error) {
+      return html`
+        <div class="collection-container">
+          <div class="collection-header">
+            <div class="collection-title">Error</div>
+          </div>
+          <div class="error">${this.error}</div>
+        </div>
+      `;
+    }
+
+    return html`
+      ${this.currentView === 'collection' ? this.renderCollectionView() : this.renderDetailView()}
+      ${this.showAddModal ? this.renderRecipeModal() : ''}
+      ${this.showEditModal ? this.renderRecipeModal(this.editingRecipe) : ''}
     `;
   }
 }

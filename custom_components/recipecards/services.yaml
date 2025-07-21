@@ -1,11 +1,11 @@
 add_recipe:
   name: Add Recipe
-  description: Add a new recipe to a specific recipe list.
+  description: Add a new recipe. Config entry is auto-detected if not specified.
   fields:
     config_entry_id:
       name: Recipe List
-      description: The recipe list to add the recipe to.
-      required: true
+      description: The recipe list to add the recipe to (optional - auto-detected if only one exists).
+      required: false
       selector:
         config_entry:
           integration: recipecards
@@ -50,12 +50,12 @@ add_recipe:
 
 update_recipe:
   name: Update Recipe
-  description: Update an existing recipe in a specific recipe list.
+  description: Update an existing recipe. Config entry is auto-detected if not specified.
   fields:
     config_entry_id:
       name: Recipe List
-      description: The recipe list containing the recipe to update.
-      required: true
+      description: The recipe list containing the recipe to update (optional - auto-detected if only one exists).
+      required: false
       selector:
         config_entry:
           integration: recipecards
@@ -105,12 +105,12 @@ update_recipe:
 
 delete_recipe:
   name: Delete Recipe
-  description: Delete a recipe from a specific recipe list.
+  description: Delete a recipe. Config entry is auto-detected if not specified.
   fields:
     config_entry_id:
       name: Recipe List
-      description: The recipe list containing the recipe to delete.
-      required: true
+      description: The recipe list containing the recipe to delete (optional - auto-detected if only one exists).
+      required: false
       selector:
         config_entry:
           integration: recipecards
