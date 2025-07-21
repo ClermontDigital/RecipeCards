@@ -27,8 +27,9 @@ declare global {
 
 @customElement('recipecards-card')
 export class RecipeCardsCard extends LitElement {
-  private hass: any;
-  config?: RecipeCardsConfig;
+  public hass!: any;
+  public config?: RecipeCardsConfig;
+  
   private flipped = false;
   private recipe?: Recipe;
   private recipes: Recipe[] = [];
@@ -38,6 +39,28 @@ export class RecipeCardsCard extends LitElement {
   private showAddModal = false;
   private showEditModal = false;
   private editingRecipe?: Recipe;
+  private selectedColor = '#FFD700';
+  private saving = false;
+  private errorMessage?: string;
+
+  static get properties() {
+    return {
+      hass: { attribute: false },
+      config: { attribute: false },
+      flipped: { state: true },
+      recipe: { state: true },
+      recipes: { state: true },
+      loading: { state: true },
+      error: { state: true },
+      currentView: { state: true },
+      showAddModal: { state: true },
+      showEditModal: { state: true },
+      editingRecipe: { state: true },
+      selectedColor: { state: true },
+      saving: { state: true },
+      errorMessage: { state: true }
+    };
+  }
 
   static styles = css`
     :host {
@@ -438,6 +461,31 @@ export class RecipeCardsCard extends LitElement {
     .btn-secondary:hover {
       background: #e8e0c0;
     }
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .error-message {
+      background: #fee;
+      color: #c33;
+      padding: 0.5em;
+      border-radius: 4px;
+      margin-bottom: 1em;
+      border: 1px solid #fcc;
+    }
+    .loading-spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid #bfa14a;
+      border-radius: 50%;
+      border-top-color: transparent;
+      animation: spin 1s ease-in-out infinite;
+      margin-right: 0.5em;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
 
     /* Back button for detail view */
     .back-btn {
@@ -495,23 +543,34 @@ export class RecipeCardsCard extends LitElement {
     if (!entityState) {
       this.error = `Entity not found: ${this.config.entity}`;
       this.loading = false;
-      this.requestUpdate();
       return;
     }
 
-    this.recipes = entityState.attributes.recipes || [];
-    if (this.recipes.length > 0 && !this.recipe) {
-      this.recipe = this.recipes[0];
+    const newRecipes = entityState.attributes.recipes || [];
+    
+    // Only update if recipes have actually changed
+    if (JSON.stringify(newRecipes) !== JSON.stringify(this.recipes)) {
+      this.recipes = newRecipes;
+      if (this.recipes.length > 0 && !this.recipe) {
+        this.recipe = this.recipes[0];
+      }
     }
     
     this.loading = false;
     this.error = undefined;
-    this.requestUpdate();
   }
 
   protected shouldUpdate(changedProps: Map<string | number | symbol, unknown>): boolean {
-    if (changedProps.has('hass')) {
-      this.updateRecipes();
+    if (changedProps.has('hass') && this.config) {
+      const oldHass = changedProps.get('hass') as any;
+      const newHass = this.hass;
+      
+      // Only update if the specific entity has changed
+      if (!oldHass || 
+          !oldHass.states[this.config.entity] || 
+          oldHass.states[this.config.entity] !== newHass.states[this.config.entity]) {
+        this.updateRecipes();
+      }
     }
     return true;
   }
@@ -519,35 +578,31 @@ export class RecipeCardsCard extends LitElement {
   private switchRecipe(recipeId: string) {
     this.flipped = false; // Reset flip state when switching recipes
     this.recipe = this.recipes.find(r => r.id === recipeId);
-    this.requestUpdate();
   }
 
   private flipCard(e: Event) {
     e.stopPropagation();
     this.flipped = !this.flipped;
-    this.requestUpdate();
   }
 
   private openAddModal() {
     this.showAddModal = true;
-    this.requestUpdate();
+    this.selectedColor = '#FFD700'; // Reset color picker
   }
 
   private closeAddModal() {
     this.showAddModal = false;
-    this.requestUpdate();
   }
 
   private openEditModal(recipe: Recipe) {
     this.editingRecipe = recipe;
+    this.selectedColor = recipe.color || '#FFD700';
     this.showEditModal = true;
-    this.requestUpdate();
   }
 
   private closeEditModal() {
     this.showEditModal = false;
     this.editingRecipe = undefined;
-    this.requestUpdate();
   }
 
   private async addRecipe(formData: FormData) {
@@ -557,6 +612,9 @@ export class RecipeCardsCard extends LitElement {
     const notes = formData.get('notes') as string;
     const instructions = (formData.get('instructions') as string).split('\n').filter(i => i.trim());
     const color = formData.get('color') as string || '#FFD700';
+
+    this.saving = true;
+    this.errorMessage = undefined;
 
     try {
       await this.hass.callService('recipecards', 'add_recipe', {
@@ -570,7 +628,10 @@ export class RecipeCardsCard extends LitElement {
       this.closeAddModal();
     } catch (error) {
       console.error('Failed to add recipe:', error);
-      // Could add error handling UI here
+      this.errorMessage = 'Failed to add recipe. Please check your input and try again.';
+      setTimeout(() => this.errorMessage = undefined, 5000);
+    } finally {
+      this.saving = false;
     }
   }
 
@@ -583,6 +644,9 @@ export class RecipeCardsCard extends LitElement {
     const notes = formData.get('notes') as string;
     const instructions = (formData.get('instructions') as string).split('\n').filter(i => i.trim());
     const color = formData.get('color') as string || '#FFD700';
+
+    this.saving = true;
+    this.errorMessage = undefined;
 
     try {
       await this.hass.callService('recipecards', 'update_recipe', {
@@ -597,7 +661,10 @@ export class RecipeCardsCard extends LitElement {
       this.closeEditModal();
     } catch (error) {
       console.error('Failed to update recipe:', error);
-      // Could add error handling UI here
+      this.errorMessage = 'Failed to update recipe. Please check your input and try again.';
+      setTimeout(() => this.errorMessage = undefined, 5000);
+    } finally {
+      this.saving = false;
     }
   }
 
@@ -619,12 +686,15 @@ export class RecipeCardsCard extends LitElement {
     this.recipe = recipe;
     this.currentView = 'detail';
     this.flipped = false;
-    this.requestUpdate();
   }
 
   private backToCollection() {
     this.currentView = 'collection';
-    this.requestUpdate();
+  }
+
+  private sanitizeText(text: string): string {
+    // Basic XSS protection - remove potentially dangerous characters
+    return text.replace(/[<>]/g, '');
   }
 
   private renderCollectionView() {
@@ -657,8 +727,8 @@ export class RecipeCardsCard extends LitElement {
                  @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.viewRecipe(recipe); } }}
                  tabindex="0" role="button" aria-label="View recipe: ${recipe.title}">
               <div class="recipe-tile-header" style="background-color: ${recipe.color}">
-                <div class="recipe-tile-title">${recipe.title}</div>
-                <div class="recipe-tile-desc">${recipe.description}</div>
+                <div class="recipe-tile-title">${this.sanitizeText(recipe.title)}</div>
+                <div class="recipe-tile-desc">${this.sanitizeText(recipe.description)}</div>
               </div>
               <div class="recipe-tile-info">
                 <small>🥘 ${recipe.ingredients.length} ingredients • 📝 ${recipe.instructions.length} steps</small>
@@ -677,7 +747,6 @@ export class RecipeCardsCard extends LitElement {
   private renderDetailView() {
     if (!this.recipe) {
       this.currentView = 'collection';
-      this.requestUpdate();
       return html``;
     }
 
@@ -768,25 +837,26 @@ export class RecipeCardsCard extends LitElement {
             </div>
             <div class="form-group">
               <label class="form-label">Color</label>
-              <input type="hidden" name="color" value="${recipe?.color || '#FFD700'}" />
+              <input type="hidden" name="color" value="${this.selectedColor}" />
               <div class="color-picker">
                 ${colorOptions.map(color => html`
                   <div 
-                    class="color-option${(recipe?.color || '#FFD700') === color ? ' selected' : ''}" 
+                    class="color-option${this.selectedColor === color ? ' selected' : ''}" 
                     style="background-color: ${color}"
-                    @click=${() => {
-                      const input = this.shadowRoot?.querySelector('input[name="color"]') as HTMLInputElement;
-                      if (input) input.value = color;
-                      this.shadowRoot?.querySelectorAll('.color-option').forEach(el => el.classList.remove('selected'));
-                      (this.shadowRoot?.querySelector(`[style*="${color}"]`) as HTMLElement)?.classList.add('selected');
-                    }}
+                    @click=${() => { this.selectedColor = color; }}
                   ></div>
                 `)}
               </div>
             </div>
+            ${this.errorMessage ? html`
+              <div class="error-message">${this.errorMessage}</div>
+            ` : ''}
             <div class="modal-actions">
-              <button type="button" class="btn btn-secondary" @click=${isEdit ? this.closeEditModal : this.closeAddModal}>Cancel</button>
-              <button type="submit" class="btn btn-primary">${isEdit ? 'Update' : 'Add'} Recipe</button>
+              <button type="button" class="btn btn-secondary" @click=${isEdit ? this.closeEditModal : this.closeAddModal} ?disabled=${this.saving}>Cancel</button>
+              <button type="submit" class="btn btn-primary" ?disabled=${this.saving}>
+                ${this.saving ? html`<span class="loading-spinner"></span>` : ''}
+                ${isEdit ? 'Update' : 'Add'} Recipe
+              </button>
             </div>
           </form>
         </div>

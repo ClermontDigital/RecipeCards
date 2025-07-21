@@ -22,25 +22,40 @@ ATTR_COLOR = "color"
 ATTR_RECIPE_ID = "recipe_id"
 ATTR_CONFIG_ENTRY_ID = "config_entry_id"
 
+def validate_color(color: str) -> str:
+    """Validate color is a valid hex color."""
+    import re
+    if not re.match(r'^#[0-9A-Fa-f]{6}$', color):
+        return "#FFD700"  # Default color
+    return color
+
+def validate_text_length(max_length: int):
+    """Validate text length."""
+    def validator(value):
+        if len(str(value)) > max_length:
+            raise vol.Invalid(f"Text too long (max {max_length} characters)")
+        return str(value)
+    return validator
+
 ADD_RECIPE_SCHEMA = vol.Schema({
     vol.Optional(ATTR_CONFIG_ENTRY_ID): cv.string,  # Made optional for auto-detection
-    vol.Required(ATTR_TITLE): cv.string,
-    vol.Optional(ATTR_DESCRIPTION, default=""): cv.string,
-    vol.Optional(ATTR_INGREDIENTS, default=[]): vol.All(cv.ensure_list, [cv.string]),
-    vol.Optional(ATTR_NOTES, default=""): cv.string,
-    vol.Optional(ATTR_INSTRUCTIONS, default=[]): vol.All(cv.ensure_list, [cv.string]),
-    vol.Optional(ATTR_COLOR, default="#FFD700"): cv.string,
+    vol.Required(ATTR_TITLE): vol.All(cv.string, vol.Length(min=1, max=100)),
+    vol.Optional(ATTR_DESCRIPTION, default=""): vol.All(cv.string, vol.Length(max=500)),
+    vol.Optional(ATTR_INGREDIENTS, default=[]): vol.All(cv.ensure_list, [vol.All(cv.string, vol.Length(max=200))]),
+    vol.Optional(ATTR_NOTES, default=""): vol.All(cv.string, vol.Length(max=1000)),
+    vol.Optional(ATTR_INSTRUCTIONS, default=[]): vol.All(cv.ensure_list, [vol.All(cv.string, vol.Length(max=500))]),
+    vol.Optional(ATTR_COLOR, default="#FFD700"): vol.All(cv.string, validate_color),
 })
 
 UPDATE_RECIPE_SCHEMA = vol.Schema({
     vol.Optional(ATTR_CONFIG_ENTRY_ID): cv.string,  # Made optional for auto-detection
     vol.Required(ATTR_RECIPE_ID): cv.string,
-    vol.Optional(ATTR_TITLE): cv.string,
-    vol.Optional(ATTR_DESCRIPTION): cv.string,
-    vol.Optional(ATTR_INGREDIENTS): vol.All(cv.ensure_list, [cv.string]),
-    vol.Optional(ATTR_NOTES): cv.string,
-    vol.Optional(ATTR_INSTRUCTIONS): vol.All(cv.ensure_list, [cv.string]),
-    vol.Optional(ATTR_COLOR): cv.string,
+    vol.Optional(ATTR_TITLE): vol.All(cv.string, vol.Length(min=1, max=100)),
+    vol.Optional(ATTR_DESCRIPTION): vol.All(cv.string, vol.Length(max=500)),
+    vol.Optional(ATTR_INGREDIENTS): vol.All(cv.ensure_list, [vol.All(cv.string, vol.Length(max=200))]),
+    vol.Optional(ATTR_NOTES): vol.All(cv.string, vol.Length(max=1000)),
+    vol.Optional(ATTR_INSTRUCTIONS): vol.All(cv.ensure_list, [vol.All(cv.string, vol.Length(max=500))]),
+    vol.Optional(ATTR_COLOR): vol.All(cv.string, validate_color),
 })
 
 DELETE_RECIPE_SCHEMA = vol.Schema({
