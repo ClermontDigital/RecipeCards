@@ -26,6 +26,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     coordinator = DataUpdateCoordinator(
         hass,
+        logger=__import__("logging").getLogger(__name__),
         name=f"recipecards_sensor_{entry.entry_id}",
         update_method=async_update_data,
         update_interval=None,
