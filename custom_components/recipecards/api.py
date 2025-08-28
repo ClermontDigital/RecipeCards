@@ -22,13 +22,7 @@ async def _update_coordinator(hass: HomeAssistant) -> None:
         if isinstance(entry_data, dict) and "coordinator" in entry_data:
             await entry_data["coordinator"].async_request_refresh()
 
-@websocket_api.websocket_command(
-    websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend(
-        {
-            vol.Required("type"): RECIPE_LIST_TYPE,
-        }
-    )
-)
+@websocket_api.websocket_command({vol.Required("type"): RECIPE_LIST_TYPE})
 async def async_list_recipes(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     """List all recipes."""
     if DOMAIN not in hass.data or not hass.data[DOMAIN]:
@@ -47,14 +41,10 @@ async def async_list_recipes(hass: HomeAssistant, connection: websocket_api.Acti
     recipes = await storage.async_load_recipes()
     connection.send_result(msg["id"], [r.to_dict() for r in recipes])
 
-@websocket_api.websocket_command(
-    websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend(
-        {
-            vol.Required("type"): RECIPE_GET_TYPE,
-            vol.Required("recipe_id"): str,
-        }
-    )
-)
+@websocket_api.websocket_command({
+    vol.Required("type"): RECIPE_GET_TYPE,
+    vol.Required("recipe_id"): str,
+})
 async def async_get_recipe(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     """Get a specific recipe by ID."""
     if DOMAIN not in hass.data or not hass.data[DOMAIN]:
@@ -78,14 +68,10 @@ async def async_get_recipe(hass: HomeAssistant, connection: websocket_api.Active
             return
     connection.send_error(msg["id"], "not_found", "Recipe not found")
 
-@websocket_api.websocket_command(
-    websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend(
-        {
-            vol.Required("type"): RECIPE_ADD_TYPE,
-            vol.Required("recipe"): dict,
-        }
-    )
-)
+@websocket_api.websocket_command({
+    vol.Required("type"): RECIPE_ADD_TYPE,
+    vol.Required("recipe"): dict,
+})
 async def async_add_recipe(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     """Add a new recipe."""
     if DOMAIN not in hass.data or not hass.data[DOMAIN]:
@@ -110,15 +96,11 @@ async def async_add_recipe(hass: HomeAssistant, connection: websocket_api.Active
     
     connection.send_result(msg["id"], recipe.to_dict())
 
-@websocket_api.websocket_command(
-    websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend(
-        {
-            vol.Required("type"): RECIPE_UPDATE_TYPE,
-            vol.Required("recipe_id"): str,
-            vol.Required("recipe"): dict,
-        }
-    )
-)
+@websocket_api.websocket_command({
+    vol.Required("type"): RECIPE_UPDATE_TYPE,
+    vol.Required("recipe_id"): str,
+    vol.Required("recipe"): dict,
+})
 async def async_update_recipe(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     """Update an existing recipe."""
     if DOMAIN not in hass.data or not hass.data[DOMAIN]:
@@ -144,14 +126,10 @@ async def async_update_recipe(hass: HomeAssistant, connection: websocket_api.Act
     else:
         connection.send_error(msg["id"], "not_found", "Recipe not found")
 
-@websocket_api.websocket_command(
-    websocket_api.BASE_COMMAND_MESSAGE_SCHEMA.extend(
-        {
-            vol.Required("type"): RECIPE_DELETE_TYPE,
-            vol.Required("recipe_id"): str,
-        }
-    )
-)
+@websocket_api.websocket_command({
+    vol.Required("type"): RECIPE_DELETE_TYPE,
+    vol.Required("recipe_id"): str,
+})
 async def async_delete_recipe(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     """Delete a recipe by ID."""
     if DOMAIN not in hass.data or not hass.data[DOMAIN]:
