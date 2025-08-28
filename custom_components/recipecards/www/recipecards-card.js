@@ -129,9 +129,10 @@
         </select>
       ` : '';
 
-      const grid = recipes
-        .filter(r => this._entryFilter==='all' || r._entry_id===this._entryFilter)
-        .map(r=>`
+      const groupByEntry = (this._config.group_by === 'entry') || (!this._config.group_by && new Set((recipes||[]).map(r=>r._entry_id).filter(Boolean)).size > 1);
+
+      if (!groupByEntry) {
+        const grid = recipes.map(r=>`
         <div class="rc-tile" data-id="${this._escape(r.id)}">
           <div class="rc-t">${this._escape(r.title)}</div>
           ${r.description ? `<div>${this._escape(r.description)}</div>` : ''}
@@ -143,22 +144,65 @@
         </div>
       `).join('');
 
-      this.innerHTML = `${style}
+        this.innerHTML = `${style}
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;" class="rc-tools">
           <div style="font-weight:bold;">${this._title}</div>
-          ${filterHtml}
           <mwc-button raised class="rc-add">Add</mwc-button>
         </div>
         ${recipes.length ? `<div class="rc-grid">${grid}</div>` : `<ha-alert>Click Add to create your first recipe.</ha-alert>`}
       `;
 
-      this.querySelector('.rc-add')?.addEventListener('click', ()=> this._openAdd());
-      this.querySelector('.rc-filter')?.addEventListener('change', (e)=>{ this._entryFilter = e.target.value; this._load(); });
+        this.querySelector('.rc-add')?.addEventListener('click', ()=> this._openAdd());
+        this.querySelectorAll('.rc-tile').forEach(tile => {
+          const id = tile.getAttribute('data-id');
+          tile.querySelector('.rc-open')?.addEventListener('click', (e)=>{ e.stopPropagation(); this._selected=id; this._view='detail'; this._render(); });
+          tile.querySelector('.rc-edit')?.addEventListener('click', (e)=>{ e.stopPropagation(); const r=recipes.find(x=>x.id===id); if(r) this._openEdit(r); });
+          tile.querySelector('.rc-del')?.addEventListener('click', (e)=>{ e.stopPropagation(); const r=recipes.find(x=>x.id===id); if(r) this._delete(r); });
+        });
+        return;
+      }
+
+      // Group by entry
+      const groups = {};
+      for (const r of recipes) {
+        const id = r._entry_id || 'unknown';
+        const title = r._entry_title || `Set ${String(id).slice(0,6)}`;
+        if (!groups[id]) groups[id] = { title, recipes: [] };
+        groups[id].recipes.push(r);
+      }
+
+      const blocks = Object.entries(groups).map(([gid, g]) => {
+        const grid = g.recipes.map(r=>`
+          <div class="rc-tile" data-id="${this._escape(r.id)}">
+            <div class="rc-t">${this._escape(r.title)}</div>
+            ${r.description ? `<div>${this._escape(r.description)}</div>` : ''}
+            <div class="rc-actions">
+              <button class="rc-btn rc-open">Open</button>
+              <button class="rc-btn rc-edit">Edit</button>
+              <button class="rc-btn rc-del">Delete</button>
+            </div>
+          </div>
+        `).join('');
+        return `
+          <div style="display:flex;align-items:center;justify-content:space-between;margin:0 0 8px 0;" class="rc-tools">
+            <div style="font-weight:bold;">${this._escape(g.title)}</div>
+            <mwc-button raised class="rc-add" data-entry="${gid}">Add</mwc-button>
+          </div>
+          <div class="rc-grid">${grid}</div>
+        `;
+      }).join('');
+
+      this.innerHTML = `${style}${blocks || `<ha-alert>Click Add to create your first recipe.</ha-alert>`}`;
+      this.querySelectorAll('.rc-add').forEach(btn => btn.addEventListener('click', (e)=>{
+        const id = e.currentTarget.getAttribute('data-entry');
+        this._entryFilter = id || 'all';
+        this._openAdd();
+      }));
       this.querySelectorAll('.rc-tile').forEach(tile => {
         const id = tile.getAttribute('data-id');
         tile.querySelector('.rc-open')?.addEventListener('click', (e)=>{ e.stopPropagation(); this._selected=id; this._view='detail'; this._render(); });
-        tile.querySelector('.rc-edit')?.addEventListener('click', (e)=>{ e.stopPropagation(); const r=recipes.find(x=>x.id===id); if(r) this._openEdit(r); });
-        tile.querySelector('.rc-del')?.addEventListener('click', (e)=>{ e.stopPropagation(); const r=recipes.find(x=>x.id===id); if(r) this._delete(r); });
+        tile.querySelector('.rc-edit')?.addEventListener('click', (e)=>{ e.stopPropagation(); const all=[].concat(...Object.values(groups).map(x=>x.recipes)); const r=all.find(x=>x.id===id); if(r) this._openEdit(r); });
+        tile.querySelector('.rc-del')?.addEventListener('click', (e)=>{ e.stopPropagation(); const all=[].concat(...Object.values(groups).map(x=>x.recipes)); const r=all.find(x=>x.id===id); if(r) this._delete(r); });
       });
     }
 

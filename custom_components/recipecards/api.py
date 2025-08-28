@@ -47,11 +47,19 @@ async def async_list_recipes(hass: HomeAssistant, connection: websocket_api.Acti
         return
     combined = []
     for entry_id, storage in storages:
+        entry_title = None
+        try:
+            ce = hass.config_entries.async_get_entry(entry_id)
+            entry_title = getattr(ce, "title", None)
+        except Exception:  # noqa: BLE001
+            entry_title = None
         recipes = await storage.async_load_recipes()
         # annotate entry_id so UIs can target a specific collection if needed
         for r in recipes:
             data = r.to_dict()
             data["_entry_id"] = entry_id
+            if entry_title:
+                data["_entry_title"] = entry_title
             combined.append(data)
     connection.send_result(msg["id"], combined)
 
@@ -73,6 +81,12 @@ async def async_get_recipe(hass: HomeAssistant, connection: websocket_api.Active
             if recipe.id == recipe_id:
                 data = recipe.to_dict()
                 data["_entry_id"] = entry_id
+                try:
+                    ce = hass.config_entries.async_get_entry(entry_id)
+                    if ce and getattr(ce, "title", None):
+                        data["_entry_title"] = ce.title
+                except Exception:  # noqa: BLE001
+                    pass
                 connection.send_result(msg["id"], data)
                 return
     connection.send_error(msg["id"], "not_found", "Recipe not found")
