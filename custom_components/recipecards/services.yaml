@@ -24,7 +24,7 @@ add_recipe:
     ingredients:
       name: Ingredients
       description: List of ingredients
-      required: true
+      required: false
       selector:
         object:
     notes:

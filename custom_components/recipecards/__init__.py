@@ -9,6 +9,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from .const import DOMAIN
 from .storage import RecipeStorage
 from .services import async_register_services, async_remove_services
+from .api import register_api
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]
 
@@ -17,6 +18,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Recipe Cards from a config entry."""
     # Initialize domain data structure
     hass.data.setdefault(DOMAIN, {})
+    # Ensure WebSocket API is registered even if async_setup wasn't called
+    if not hass.data[DOMAIN].get("api_registered"):
+        register_api(hass)
+        hass.data[DOMAIN]["api_registered"] = True
     
     # Initialize storage
     storage = RecipeStorage(hass, entry.entry_id)
@@ -38,6 +43,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "storage": storage,
         "coordinator": coordinator,
     }
+
+    # Let storage trigger coordinator refreshes on any write
+    storage.set_update_callback(coordinator.async_request_refresh)
     
     await coordinator.async_config_entry_first_refresh()
     
@@ -59,3 +67,16 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if not hass.data[DOMAIN]:
             await async_remove_services(hass)
     return unload_ok
+
+
+async def async_setup(hass: HomeAssistant, config: dict) -> bool:
+    """Set up the Recipe Cards domain.
+
+    Registers the WebSocket API and prepares the domain storage.
+    """
+    hass.data.setdefault(DOMAIN, {})
+    if not hass.data[DOMAIN].get("api_registered"):
+        # Register WebSocket API commands (idempotent via our flag)
+        register_api(hass)
+        hass.data[DOMAIN]["api_registered"] = True
+    return True

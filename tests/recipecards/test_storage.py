@@ -19,7 +19,7 @@ def storage():
     # Patch Store to use DummyStore
     import custom_components.recipecards.storage as storage_mod
     storage_mod.Store = lambda *a, **kw: dummy_store
-    return RecipeStorage(hass)
+    return RecipeStorage(hass, "test_entry")
 
 @pytest.mark.asyncio
 async def test_crud(storage):

@@ -1,3 +1,4 @@
+from typing import Awaitable, Callable, Optional
 from homeassistant.helpers.storage import Store
 from homeassistant.core import HomeAssistant
 from .const import DOMAIN
@@ -7,13 +8,26 @@ STORAGE_VERSION = 1
 
 class RecipeStorage:
     def __init__(self, hass: HomeAssistant, entry_id: str) -> None:
-        self._store = Store(hass, STORAGE_VERSION, f".{DOMAIN}.{entry_id}.json")
+        # New preferred filename
+        self._store = Store(hass, STORAGE_VERSION, f"recipecards_{entry_id}.json")
+        # Legacy filename for migration support
+        self._legacy_store = Store(hass, STORAGE_VERSION, f".{DOMAIN}.{entry_id}.json")
         self._recipes: list[Recipe] = []
+        self._update_cb: Optional[Callable[[], Awaitable[None]]] = None
+
+    def set_update_callback(self, cb: Callable[[], Awaitable[None]]) -> None:
+        """Set a callback to be awaited whenever recipes change."""
+        self._update_cb = cb
 
     async def async_load_recipes(self) -> list[Recipe]:
         data = await self._store.async_load()
+        # Migrate from legacy storage if needed
         if data is None:
-            data = []
+            legacy = await self._legacy_store.async_load()
+            data = legacy if legacy is not None else []
+            # Persist to new store if we loaded legacy data
+            if legacy:
+                await self._store.async_save(legacy)
         self._recipes = [Recipe.from_dict(d) for d in data]
         return self._recipes
 
@@ -44,5 +58,5 @@ class RecipeStorage:
 
     async def _notify_update(self) -> None:
         """Notify Home Assistant of recipe updates."""
-        # This will be used by the coordinator to update sensors
-        pass
+        if self._update_cb is not None:
+            await self._update_cb()

@@ -1,15 +1,16 @@
-"""Tests for the Recipe Cards WebSocket API."""
-from unittest.mock import AsyncMock, patch
+"""Tests for the Recipe Cards WebSocket API.
 
+Skips if Home Assistant isn't available in the environment.
+"""
 import pytest
-from homeassistant.core import HomeAssistant
-from homeassistant.setup import async_setup_component
 
-from custom_components.recipecards.const import DOMAIN
-from custom_components.recipecards.api import (
-    async_list_recipes,
-)
-from custom_components.recipecards.models import Recipe
+ha = pytest.importorskip("homeassistant")
+from unittest.mock import AsyncMock  # noqa: E402
+from homeassistant.core import HomeAssistant  # type: ignore # noqa: E402
+from homeassistant.setup import async_setup_component  # type: ignore # noqa: E402
+from custom_components.recipecards.const import DOMAIN  # noqa: E402
+from custom_components.recipecards.api import async_list_recipes  # noqa: E402
+from custom_components.recipecards.models import Recipe  # noqa: E402
 
 
 @pytest.fixture

@@ -1,0 +1,14 @@
+{
+  "config": {
+    "abort": {
+      "single_instance_allowed": "Only one Recipe Cards instance is allowed."
+    },
+    "step": {
+      "user": {
+        "title": "Recipe Cards",
+        "description": "Set up the Recipe Cards integration. No options are required."
+      }
+    }
+  }
+}
+

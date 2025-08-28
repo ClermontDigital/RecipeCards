@@ -3,7 +3,7 @@
   "render_readme": true,
   "domains": ["recipecards"],
   "homeassistant": "2024.1.0",
-  "iot_class": "Local Push",
+  "iot_class": "Local Polling",
   "description": "Retro-style recipe card management for Home Assistant with tab navigation, flip animations, and comprehensive service API",
   "authors": ["@ClermontDigital"],
   "topics": ["recipe", "food", "cooking", "lovelace", "ui", "storage"]

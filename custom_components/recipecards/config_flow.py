@@ -36,7 +36,7 @@ class RecipeCardsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     @staticmethod
     @callback
-    def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> RecipeCardsOptionsFlow:
+    def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> "RecipeCardsOptionsFlow":
         """Create the options flow."""
         return RecipeCardsOptionsFlow(config_entry)
 
