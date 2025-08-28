@@ -50,7 +50,7 @@ class RecipeCardsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Optional("recipe_ingredients", default=""): str,  # one per line
                 vol.Optional("recipe_notes", default=""): str,
                 vol.Optional("recipe_instructions", default=""): str,  # one per line
-                vol.Optional("recipe_color", default="#FFD700"): _validate_color,
+                vol.Optional("recipe_color", default="#FFD700"): str,
             }
         )
 
@@ -72,7 +72,7 @@ class RecipeCardsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 "ingredients": _split_lines(user_input.get("recipe_ingredients") or ""),
                 "notes": (user_input.get("recipe_notes") or "").strip(),
                 "instructions": _split_lines(user_input.get("recipe_instructions") or ""),
-                "color": user_input.get("recipe_color") or "#FFD700",
+                "color": _validate_color(user_input.get("recipe_color") or "#FFD700"),
             }
 
         return self.async_create_entry(
