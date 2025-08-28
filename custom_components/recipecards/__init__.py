@@ -83,8 +83,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                             existing = True
                             break
                     if not existing:
+                        # Use classic JS resource for our buildless IIFE card
                         await registry.async_create_item({
-                            "res_type": "module",
+                            "res_type": "js",
                             "url": url_path,
                         })
 
