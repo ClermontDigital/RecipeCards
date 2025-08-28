@@ -97,13 +97,15 @@ class RecipeCardsOptionsFlow(config_entries.OptionsFlow):
         self._config_entry = config_entry
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        """Options: allow adding recipes from the options flow."""
-        schema = vol.Schema({
-            vol.Optional("action", default="add_recipe"): vol.In({
-                "add_recipe": "Add recipe",
-                "finish": "Finish",
-            })
-        })
+        """Main options menu, similar to Local Tuya's config menu."""
+        actions = {
+            "add_recipe": "Add new recipe",
+            "edit_recipe": "Edit existing recipe",
+            "delete_recipe": "Delete recipe",
+            "rename_section": "Rename this section",
+            "finish": "Finish",
+        }
+        schema = vol.Schema({vol.Required("action", default="add_recipe"): vol.In(actions)})
 
         if user_input is None:
             return self.async_show_form(step_id="init", data_schema=schema, last_step=False)
@@ -111,9 +113,19 @@ class RecipeCardsOptionsFlow(config_entries.OptionsFlow):
         action = user_input.get("action")
         if action == "add_recipe":
             return await self.async_step_add_recipe()
-
-        # No persistent options for now; we simply finish.
+        if action == "edit_recipe":
+            return await self.async_step_select_recipe({"next": "edit"})
+        if action == "delete_recipe":
+            return await self.async_step_select_recipe({"next": "delete"})
+        if action == "rename_section":
+            return await self.async_step_rename_section()
         return self.async_create_entry(title="", data={})
+
+    def _get_storage_and_coordinator(self):
+        domain_data = self.hass.data.get(DOMAIN, {})
+        entry_id = self._config_entry.entry_id
+        entry_data = domain_data.get(entry_id, {})
+        return entry_data.get("storage"), entry_data.get("coordinator")
 
     async def async_step_add_recipe(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Collect full recipe fields and save to this entry's storage."""
@@ -144,9 +156,7 @@ class RecipeCardsOptionsFlow(config_entries.OptionsFlow):
 
         # Persist asynchronously; ignore errors to keep flow resilient
         try:
-            entry_id = self._config_entry.entry_id
-            storage = self.hass.data.get(DOMAIN, {}).get(entry_id, {}).get("storage")
-            coordinator = self.hass.data.get(DOMAIN, {}).get(entry_id, {}).get("coordinator")
+            storage, coordinator = self._get_storage_and_coordinator()
             if storage and coordinator:
                 from .models import Recipe
                 await storage.async_add_recipe(Recipe.from_dict(recipe_data))
@@ -154,5 +164,103 @@ class RecipeCardsOptionsFlow(config_entries.OptionsFlow):
         except Exception:  # noqa: BLE001
             pass
 
-        # Return to init to allow adding more, not the final screen
-        return self.async_show_form(step_id="init", data_schema=vol.Schema({}), last_step=False)
+        # Go back to main menu to allow more actions
+        return await self.async_step_init({"action": "add_recipe"})
+
+    async def async_step_select_recipe(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        """Select a recipe to edit/delete."""
+        next_action = (user_input or {}).get("next", "edit")
+        storage, _ = self._get_storage_and_coordinator()
+        titles: dict[str, str] = {}
+        if storage:
+            try:
+                recipes = await storage.async_load_recipes()
+                titles = {r.id: (r.title or r.id) for r in recipes}
+            except Exception:  # noqa: BLE001
+                titles = {}
+        if not titles:
+            # Nothing to select; return to menu
+            return await self.async_step_init()
+
+        schema = vol.Schema({vol.Required("recipe_id"): vol.In(titles)})
+        if user_input and user_input.get("recipe_id"):
+            rid = user_input["recipe_id"]
+            if next_action == "edit":
+                return await self.async_step_edit_recipe({"recipe_id": rid})
+            if next_action == "delete":
+                return await self.async_step_delete_recipe({"recipe_id": rid})
+        return self.async_show_form(step_id="select_recipe", data_schema=schema)
+
+    async def async_step_edit_recipe(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        """Edit selected recipe."""
+        if user_input is None or "recipe_id" not in user_input:
+            return await self.async_step_select_recipe({"next": "edit"})
+
+        rid = user_input["recipe_id"]
+        storage, coordinator = self._get_storage_and_coordinator()
+        if not storage:
+            return await self.async_step_init()
+
+        recipes = await storage.async_load_recipes()
+        recipe = next((r for r in recipes if r.id == rid), None)
+        if not recipe:
+            return await self.async_step_init()
+
+        schema = vol.Schema({
+            vol.Required("title", default=recipe.title): str,
+            vol.Optional("description", default=recipe.description or ""): str,
+            vol.Optional("ingredients", default="\n".join(recipe.ingredients or [])): str,
+            vol.Optional("notes", default=recipe.notes or ""): str,
+            vol.Optional("instructions", default="\n".join(recipe.instructions or [])): str,
+            vol.Optional("color", default=recipe.color or "#FFD700"): str,
+        })
+
+        if user_input and set(user_input.keys()) - {"recipe_id"}:
+            def _split_lines(value: str) -> list[str]:
+                return [line.strip() for line in (value or "").splitlines() if line.strip()]
+
+            updated = {
+                "id": rid,
+                "title": user_input.get("title", recipe.title),
+                "description": user_input.get("description", recipe.description or ""),
+                "ingredients": _split_lines(user_input.get("ingredients") or "\n".join(recipe.ingredients or [])),
+                "notes": user_input.get("notes", recipe.notes or ""),
+                "instructions": _split_lines(user_input.get("instructions") or "\n".join(recipe.instructions or [])),
+                "color": _validate_color(user_input.get("color") or recipe.color or "#FFD700"),
+            }
+            try:
+                from .models import Recipe
+                await storage.async_update_recipe(rid, Recipe.from_dict(updated))
+                if coordinator:
+                    await coordinator.async_request_refresh()
+            except Exception:  # noqa: BLE001
+                pass
+            return await self.async_step_init()
+
+        return self.async_show_form(step_id="edit_recipe", data_schema=schema)
+
+    async def async_step_delete_recipe(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        if user_input is None or "recipe_id" not in user_input:
+            return await self.async_step_select_recipe({"next": "delete"})
+        rid = user_input["recipe_id"]
+        storage, coordinator = self._get_storage_and_coordinator()
+        if storage:
+            try:
+                await storage.async_delete_recipe(rid)
+                if coordinator:
+                    await coordinator.async_request_refresh()
+            except Exception:  # noqa: BLE001
+                pass
+        return await self.async_step_init()
+
+    async def async_step_rename_section(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        default = getattr(self._config_entry, "title", "Recipe Cards")
+        schema = vol.Schema({vol.Required("section_name", default=default): str})
+        if user_input is None:
+            return self.async_show_form(step_id="rename_section", data_schema=schema)
+        try:
+            new_title = (user_input.get("section_name") or default).strip() or default
+            self.hass.config_entries.async_update_entry(self._config_entry, title=new_title)
+        except Exception:  # noqa: BLE001
+            pass
+        return await self.async_step_init()

@@ -2,7 +2,7 @@
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![HACS Badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/custom-components/hacs)
-[![Version](https://img.shields.io/badge/version-1.6.0-green.svg)](https://github.com/ClermontDigital/RecipeCards)
+[![Version](https://img.shields.io/badge/version-1.6.1-green.svg)](https://github.com/ClermontDigital/RecipeCards)
 
 Retro-style recipe card management for Home Assistant. Store, browse, and display recipes in a classic 80s-inspired card interface with flip animations and persistent storage.
 
@@ -230,7 +230,12 @@ data:
 ```
 
 ### Method 4: Options Flow (Add via Settings)
-From the integration entry row, click Configure. Choose "Add recipe" to add recipes directly from the options dialog (newline‑separated ingredients/instructions). Repeat to add multiple; choose "Finish" when done.
+From the integration entry row, click Configure. You’ll get a menu similar to Local Tuya:
+- Add new recipe: opens a full recipe form and saves to this section
+- Edit existing recipe: select a recipe then update it
+- Delete recipe: select a recipe to remove it
+- Rename this section: change the section’s title shown in the UI
+Repeat Add to add multiple recipes under the same section.
 
 ## Troubleshooting
 
