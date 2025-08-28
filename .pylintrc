@@ -1,0 +1,19 @@
+[MASTER]
+# Add Home Assistant to the Python path for import resolution
+init-hook='import sys; sys.path.append("/usr/local/lib/python3.11/site-packages")'
+
+[MESSAGES CONTROL]
+# Disable some common false positives for Home Assistant development
+disable=C0114,C0115,C0116,R0903,R0913,W0621,W0613
+
+[FORMAT]
+# Maximum number of characters on a single line
+max-line-length=120
+
+[BASIC]
+# Regular expression which should only match function or class names
+good-names=i,j,k,ex,Run,_,id,hass
+
+[SIMILARITIES]
+# Minimum lines number of a similarity
+min-similarity-lines=4 

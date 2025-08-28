@@ -1,0 +1,122 @@
+add_recipe:
+  name: Add Recipe
+  description: Add a new recipe. Config entry is auto-detected if not specified.
+  fields:
+    config_entry_id:
+      name: Recipe List
+      description: The recipe list to add the recipe to (optional - auto-detected if only one exists).
+      required: false
+      selector:
+        config_entry:
+          integration: recipecards
+    title:
+      name: Title
+      description: The title of the recipe
+      required: true
+      selector:
+        text:
+    description:
+      name: Description
+      description: A brief description of the recipe
+      required: false
+      selector:
+        text:
+    ingredients:
+      name: Ingredients
+      description: List of ingredients
+      required: false
+      selector:
+        object:
+    notes:
+      name: Notes
+      description: Additional notes about the recipe
+      required: false
+      selector:
+        text:
+          multiline: true
+    instructions:
+      name: Instructions
+      description: Cooking instructions
+      required: false
+      selector:
+        object:
+    color:
+      name: Color
+      description: Color for the recipe card (hex format)
+      required: false
+      default: "#FFD700"
+      selector:
+        color_rgb:
+
+update_recipe:
+  name: Update Recipe
+  description: Update an existing recipe. Config entry is auto-detected if not specified.
+  fields:
+    config_entry_id:
+      name: Recipe List
+      description: The recipe list containing the recipe to update (optional - auto-detected if only one exists).
+      required: false
+      selector:
+        config_entry:
+          integration: recipecards
+    recipe_id:
+      name: Recipe ID
+      description: The ID of the recipe to update
+      required: true
+      selector:
+        text:
+    title:
+      name: Title
+      description: The title of the recipe
+      required: false
+      selector:
+        text:
+    description:
+      name: Description
+      description: A brief description of the recipe
+      required: false
+      selector:
+        text:
+    ingredients:
+      name: Ingredients
+      description: List of ingredients
+      required: false
+      selector:
+        object:
+    notes:
+      name: Notes
+      description: Additional notes about the recipe
+      required: false
+      selector:
+        text:
+          multiline: true
+    instructions:
+      name: Instructions
+      description: Cooking instructions
+      required: false
+      selector:
+        object:
+    color:
+      name: Color
+      description: Color for the recipe card (hex format)
+      required: false
+      selector:
+        color_rgb:
+
+delete_recipe:
+  name: Delete Recipe
+  description: Delete a recipe. Config entry is auto-detected if not specified.
+  fields:
+    config_entry_id:
+      name: Recipe List
+      description: The recipe list containing the recipe to delete (optional - auto-detected if only one exists).
+      required: false
+      selector:
+        config_entry:
+          integration: recipecards
+    recipe_id:
+      name: Recipe ID
+      description: The ID of the recipe to delete
+      required: true
+      selector:
+        text:

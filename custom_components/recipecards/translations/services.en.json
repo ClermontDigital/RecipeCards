@@ -1,0 +1,40 @@
+{
+  "services": {
+    "add_recipe": {
+      "name": "Add Recipe",
+      "description": "Add a new recipe to the collection.",
+      "fields": {
+        "config_entry_id": {"name": "Recipe List", "description": "Optional. Target a specific Recipe Cards config entry."},
+        "title": {"name": "Title", "description": "Recipe title."},
+        "description": {"name": "Description", "description": "Short description."},
+        "ingredients": {"name": "Ingredients", "description": "List of ingredients."},
+        "notes": {"name": "Notes", "description": "Optional cooking notes."},
+        "instructions": {"name": "Instructions", "description": "List of steps."},
+        "color": {"name": "Color", "description": "Recipe header color (#RRGGBB or RGB)."}
+      }
+    },
+    "update_recipe": {
+      "name": "Update Recipe",
+      "description": "Update an existing recipe.",
+      "fields": {
+        "config_entry_id": {"name": "Recipe List", "description": "Optional. Target a specific Recipe Cards config entry."},
+        "recipe_id": {"name": "Recipe ID", "description": "ID of the recipe to update."},
+        "title": {"name": "Title", "description": "Recipe title."},
+        "description": {"name": "Description", "description": "Short description."},
+        "ingredients": {"name": "Ingredients", "description": "List of ingredients."},
+        "notes": {"name": "Notes", "description": "Optional cooking notes."},
+        "instructions": {"name": "Instructions", "description": "List of steps."},
+        "color": {"name": "Color", "description": "Recipe header color (#RRGGBB or RGB)."}
+      }
+    },
+    "delete_recipe": {
+      "name": "Delete Recipe",
+      "description": "Delete a recipe by ID.",
+      "fields": {
+        "config_entry_id": {"name": "Recipe List", "description": "Optional. Target a specific Recipe Cards config entry."},
+        "recipe_id": {"name": "Recipe ID", "description": "ID of the recipe to delete."}
+      }
+    }
+  }
+}
+
