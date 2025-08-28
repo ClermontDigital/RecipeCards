@@ -3,7 +3,12 @@ import { customElement } from 'lit/decorators.js';
 
 interface RecipeCardsConfig {
   type: string;
-  entity: string;
+  // Legacy entity support retained for backward compatibility
+  entity?: string;
+  // Target a specific RecipeCards config entry; if omitted we aggregate all
+  entry_id?: string;
+  // Load a single recipe directly
+  recipe_id?: string;
   title?: string;
   view?: 'collection' | 'detail';
 }
@@ -42,6 +47,7 @@ export class RecipeCardsCard extends LitElement {
   private selectedColor = '#FFD700';
   private saving = false;
   private errorMessage?: string;
+  private selectedEntryFilter: string | 'all' = 'all';
 
   static get properties() {
     return {
@@ -58,7 +64,8 @@ export class RecipeCardsCard extends LitElement {
       editingRecipe: { state: true },
       selectedColor: { state: true },
       saving: { state: true },
-      errorMessage: { state: true }
+      errorMessage: { state: true },
+      selectedEntryFilter: { state: true }
     };
   }
 
@@ -526,38 +533,74 @@ export class RecipeCardsCard extends LitElement {
   `;
 
   setConfig(config: RecipeCardsConfig) {
-    if (!config.entity) {
-      throw new Error('You need to define an entity');
+    if (!config.entity && !config.entry_id && !config.recipe_id) {
+      throw new Error('You need to define an entity, entry_id, or recipe_id');
     }
     this.config = config;
-    this.currentView = config.view || 'collection';
+    this.currentView = config.view || (config.recipe_id ? 'detail' : 'collection');
   }
 
   private updateRecipes() {
     if (!this.config || !this.hass) {
       return;
     }
+    // Prefer WebSocket API which aggregates across entries
+    (async () => {
+      try {
+        this.loading = true;
+        if (this.config?.recipe_id) {
+          const r = await this.hass.callWS({
+            type: 'recipecards/recipe_get',
+            recipe_id: this.config.recipe_id,
+          });
+          this.recipes = r ? [r] : [];
+          this.recipe = r || undefined;
+          this.loading = false;
+          this.error = undefined;
+          return;
+        }
 
-    const entityState = this.hass.states[this.config.entity];
+        const list = await this.hass.callWS({ type: 'recipecards/recipe_list' });
+        const allRecipes: Recipe[] = Array.isArray(list) ? list : [];
+        // Apply optional entry filter from config
+        const filtered = this.config?.entry_id
+          ? allRecipes.filter((r: any) => r._entry_id === this.config!.entry_id)
+          : allRecipes;
 
-    if (!entityState) {
-      this.error = `Entity not found: ${this.config.entity}`;
-      this.loading = false;
-      return;
-    }
+        // Set default dropdown filter to configured entry when present
+        if (this.config?.entry_id) {
+          this.selectedEntryFilter = this.config.entry_id;
+        } else if (this.selectedEntryFilter === 'all') {
+          this.selectedEntryFilter = 'all';
+        }
 
-    const newRecipes = entityState.attributes.recipes || [];
-    
-    // Only update if recipes have actually changed
-    if (JSON.stringify(newRecipes) !== JSON.stringify(this.recipes)) {
-      this.recipes = newRecipes;
-      if (this.recipes.length > 0 && !this.recipe) {
-        this.recipe = this.recipes[0];
+        // Only update if recipes changed
+        if (JSON.stringify(filtered) !== JSON.stringify(this.recipes)) {
+          this.recipes = filtered as any;
+          if (this.recipes.length > 0 && !this.recipe) {
+            this.recipe = this.recipes[0];
+          }
+        }
+        this.loading = false;
+        this.error = undefined;
+      } catch (err) {
+        console.error(err);
+        // Fallback to legacy entity if provided
+        try {
+          if (this.config?.entity) {
+            const entityState = this.hass.states[this.config.entity];
+            const newRecipes = entityState?.attributes?.recipes || [];
+            this.recipes = newRecipes;
+            this.recipe = this.recipes[0];
+            this.loading = false;
+            this.error = undefined;
+            return;
+          }
+        } catch (_) {}
+        this.loading = false;
+        this.error = 'Failed to load recipes';
       }
-    }
-    
-    this.loading = false;
-    this.error = undefined;
+    })();
   }
 
   protected shouldUpdate(changedProps: Map<string | number | symbol, unknown>): boolean {
@@ -617,14 +660,17 @@ export class RecipeCardsCard extends LitElement {
     this.errorMessage = undefined;
 
     try {
-      await this.hass.callService('recipecards', 'add_recipe', {
+      const payload: any = {
         title,
         description,
         ingredients,
         notes,
         instructions,
         color
-      });
+      };
+      const entryId = this.selectedEntryFilter !== 'all' ? this.selectedEntryFilter : this.config?.entry_id;
+      if (entryId) payload.config_entry_id = entryId;
+      await this.hass.callService('recipecards', 'add_recipe', payload);
       this.closeAddModal();
     } catch (error) {
       console.error('Failed to add recipe:', error);
@@ -649,7 +695,7 @@ export class RecipeCardsCard extends LitElement {
     this.errorMessage = undefined;
 
     try {
-      await this.hass.callService('recipecards', 'update_recipe', {
+      const payload: any = {
         recipe_id: this.editingRecipe.id,
         title,
         description,
@@ -657,7 +703,10 @@ export class RecipeCardsCard extends LitElement {
         notes,
         instructions,
         color
-      });
+      };
+      const entryId = this.selectedEntryFilter !== 'all' ? this.selectedEntryFilter : this.config?.entry_id;
+      if (entryId) payload.config_entry_id = entryId;
+      await this.hass.callService('recipecards', 'update_recipe', payload);
       this.closeEditModal();
     } catch (error) {
       console.error('Failed to update recipe:', error);
@@ -673,9 +722,10 @@ export class RecipeCardsCard extends LitElement {
     if (!confirm('Are you sure you want to delete this recipe?')) return;
 
     try {
-      await this.hass.callService('recipecards', 'delete_recipe', {
-        recipe_id: recipeId
-      });
+      const payload: any = { recipe_id: recipeId };
+      const entryId = this.selectedEntryFilter !== 'all' ? this.selectedEntryFilter : this.config?.entry_id;
+      if (entryId) payload.config_entry_id = entryId;
+      await this.hass.callService('recipecards', 'delete_recipe', payload);
     } catch (error) {
       console.error('Failed to delete recipe:', error);
       // Could add error handling UI here
@@ -698,6 +748,7 @@ export class RecipeCardsCard extends LitElement {
   }
 
   private renderCollectionView() {
+    const entryIds = Array.from(new Set((this.recipes as any[]).map(r => r._entry_id).filter(Boolean)));
     if (this.recipes.length === 0) {
       return html`
         <div class="collection-container">
@@ -719,10 +770,18 @@ export class RecipeCardsCard extends LitElement {
       <div class="collection-container">
         <div class="collection-header">
           <div class="collection-title">${this.config?.title || 'Recipe Collection'}</div>
+          ${entryIds.length > 1 || this.config?.entry_id ? html`
+            <select @change=${(e: any) => { this.selectedEntryFilter = e.target.value; this.updateRecipes(); }}>
+              <option value="all" ?selected=${this.selectedEntryFilter === 'all'}>All sets</option>
+              ${entryIds.map(id => html`<option value="${id}" ?selected=${this.selectedEntryFilter === id}>Set ${id.slice(0, 6)}</option>`) }
+            </select>
+          ` : ''}
           <button class="add-recipe-btn" @click=${this.openAddModal} title="Add Recipe">+</button>
         </div>
         <div class="recipes-grid">
-          ${this.recipes.map(recipe => html`
+          ${this.recipes
+            .filter((r: any) => this.selectedEntryFilter === 'all' || r._entry_id === this.selectedEntryFilter)
+            .map(recipe => html`
             <div class="recipe-tile" @click=${() => this.viewRecipe(recipe)} 
                  @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.viewRecipe(recipe); } }}
                  tabindex="0" role="button" aria-label="View recipe: ${recipe.title}">

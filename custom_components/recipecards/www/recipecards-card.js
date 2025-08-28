@@ -3,13 +3,14 @@
 (function() {
   class RecipeCardsCard extends HTMLElement {
     setConfig(config) {
-      if (!config || !config.entity) {
-        throw new Error('You need to define an entity');
+      if (!config || (!config.entity && !config.entry_id && !config.recipe_id)) {
+        throw new Error('You need to define an entity, entry_id, or recipe_id');
       }
       this._config = config;
       this._title = config.title || 'Recipe Collection';
-      this._view = config.view || 'collection';
+      this._view = config.view || (config.recipe_id ? 'detail' : 'collection');
       this._selected = null;
+      this._entryFilter = config.entry_id || 'all';
       this.style.display = 'block';
       this.style.padding = '8px';
       this.style.boxSizing = 'border-box';
@@ -19,18 +20,7 @@
     set hass(hass) {
       this._hass = hass;
       if (!this._config) return;
-      const st = hass.states[this._config.entity];
-      if (!st) {
-        this._recipes = [];
-        this._error = `Entity not found: ${this._config.entity}`;
-      } else {
-        this._recipes = (st.attributes && st.attributes.recipes) || [];
-        this._error = null;
-        if (!this._selected && this._recipes.length) {
-          this._selected = this._recipes[0].id;
-        }
-      }
-      this._render();
+      this._load();
     }
 
     getCardSize() {
@@ -44,6 +34,39 @@
           <mwc-button raised class="rc-add">Add</mwc-button>
         </div>
       `;
+    }
+
+    async _load(){
+      const cfg = this._config || {};
+      this._error = null;
+      try {
+        if (cfg.recipe_id) {
+          const r = await this._hass.callWS({ type: 'recipecards/recipe_get', recipe_id: cfg.recipe_id });
+          this._recipes = r ? [r] : [];
+          this._selected = r ? r.id : null;
+        } else {
+          const list = await this._hass.callWS({ type: 'recipecards/recipe_list' });
+          let recipes = Array.isArray(list) ? list : [];
+          if (cfg.entry_id) recipes = recipes.filter(x => x._entry_id === cfg.entry_id);
+          if (this._entryFilter && this._entryFilter !== 'all') recipes = recipes.filter(x => x._entry_id === this._entryFilter);
+          this._recipes = recipes;
+          if (!this._selected && this._recipes.length) this._selected = this._recipes[0].id;
+        }
+      } catch(e) {
+        // Fallback to legacy entity attribute if provided
+        try {
+          if (cfg.entity) {
+            const st = this._hass.states[cfg.entity];
+            this._recipes = (st && st.attributes && st.attributes.recipes) || [];
+          } else {
+            throw e;
+          }
+        } catch(err) {
+          this._recipes = [];
+          this._error = 'Failed to load recipes';
+        }
+      }
+      this._render();
     }
 
     _render() {
@@ -64,6 +87,7 @@
           .rc-label { display:block; font-weight:bold; margin-bottom:2px; }
           .rc-input, .rc-textarea { width:100%; box-sizing:border-box; padding:6px; border:1px solid var(--divider-color); border-radius:6px; background:var(--card-background-color); color:var(--primary-text-color); }
           .rc-textarea { min-height: 70px; }
+          .rc-tools { display:flex; align-items:center; gap:8px; }
         </style>
       `;
 
@@ -97,7 +121,17 @@
         }
       }
 
-      const grid = recipes.map(r=>`
+      const entryIds = Array.from(new Set((recipes||[]).map(r=>r._entry_id).filter(Boolean)));
+      const filterHtml = (entryIds.length > 1 || (this._config.entry_id && !entryIds.includes(this._config.entry_id))) ? `
+        <select class="rc-filter">
+          <option value="all" ${this._entryFilter==='all'?'selected':''}>All sets</option>
+          ${entryIds.map(id=>`<option value="${id}" ${this._entryFilter===id?'selected':''}>Set ${String(id).slice(0,6)}</option>`).join('')}
+        </select>
+      ` : '';
+
+      const grid = recipes
+        .filter(r => this._entryFilter==='all' || r._entry_id===this._entryFilter)
+        .map(r=>`
         <div class="rc-tile" data-id="${this._escape(r.id)}">
           <div class="rc-t">${this._escape(r.title)}</div>
           ${r.description ? `<div>${this._escape(r.description)}</div>` : ''}
@@ -110,11 +144,16 @@
       `).join('');
 
       this.innerHTML = `${style}
-        ${this._header(this._title)}
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;" class="rc-tools">
+          <div style="font-weight:bold;">${this._title}</div>
+          ${filterHtml}
+          <mwc-button raised class="rc-add">Add</mwc-button>
+        </div>
         ${recipes.length ? `<div class="rc-grid">${grid}</div>` : `<ha-alert>Click Add to create your first recipe.</ha-alert>`}
       `;
 
       this.querySelector('.rc-add')?.addEventListener('click', ()=> this._openAdd());
+      this.querySelector('.rc-filter')?.addEventListener('change', (e)=>{ this._entryFilter = e.target.value; this._load(); });
       this.querySelectorAll('.rc-tile').forEach(tile => {
         const id = tile.getAttribute('data-id');
         tile.querySelector('.rc-open')?.addEventListener('click', (e)=>{ e.stopPropagation(); this._selected=id; this._view='detail'; this._render(); });
@@ -155,16 +194,22 @@
         const notes = wrap.querySelector('.rc-notes').value.trim();
         try {
           if (r) {
-            await this._hass.callService('recipecards', 'update_recipe', {
+            const payload = {
               recipe_id: r.id,
               title, description, ingredients, instructions, notes
-            });
+            };
+            const target = (this._entryFilter && this._entryFilter!=='all') ? this._entryFilter : (this._config.entry_id || null);
+            if (target) payload.config_entry_id = target;
+            await this._hass.callService('recipecards', 'update_recipe', payload);
           } else {
-            await this._hass.callService('recipecards', 'add_recipe', {
-              title, description, ingredients, instructions, notes
-            });
+            const payload = { title, description, ingredients, instructions, notes };
+            const target = (this._entryFilter && this._entryFilter!=='all') ? this._entryFilter : (this._config.entry_id || null);
+            if (target) payload.config_entry_id = target;
+            await this._hass.callService('recipecards', 'add_recipe', payload);
           }
           dlg.close();
+          // reload list to reflect changes
+          this._load();
         } catch (e) {
           // eslint-disable-next-line no-console
           console.error('Recipe save failed', e);
@@ -175,8 +220,12 @@
     async _delete(r){
       if (!confirm('Delete this recipe?')) return;
       try {
-        await this._hass.callService('recipecards', 'delete_recipe', { recipe_id: r.id });
+        const payload = { recipe_id: r.id };
+        const target = (this._entryFilter && this._entryFilter!=='all') ? this._entryFilter : (this._config.entry_id || null);
+        if (target) payload.config_entry_id = target;
+        await this._hass.callService('recipecards', 'delete_recipe', payload);
         this._view='collection';
+        this._load();
       } catch(e){
         // eslint-disable-next-line no-console
         console.error('Delete failed', e);
@@ -192,4 +241,3 @@
     description: 'Browse, add, edit, and delete recipes',
   });
 })();
-
