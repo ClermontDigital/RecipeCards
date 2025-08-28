@@ -156,7 +156,11 @@ async def async_update_recipe(call: ServiceCall) -> None:
         _LOGGER.error("Recipe not found: %s", recipe_id)
         return
     
-    update_data = {k: v for k, v in call.data.items() if k != ATTR_CONFIG_ENTRY_ID}
+    update_data = {
+        k: v
+        for k, v in call.data.items()
+        if k not in (ATTR_CONFIG_ENTRY_ID, ATTR_RECIPE_ID)
+    }
     
     instructions = update_data.get(ATTR_INSTRUCTIONS)
     if isinstance(instructions, str):

@@ -9,7 +9,6 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from .const import DOMAIN
 from .storage import RecipeStorage
 from .services import async_register_services, async_remove_services
-from .api import register_api
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]
 
@@ -20,6 +19,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})
     # Ensure WebSocket API is registered even if async_setup wasn't called
     if not hass.data[DOMAIN].get("api_registered"):
+        # Lazy import to avoid import-time side effects during config flow discovery
+        from .api import register_api  # noqa: WPS433 (local import by design)
         register_api(hass)
         hass.data[DOMAIN]["api_registered"] = True
     
@@ -76,6 +77,8 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """
     hass.data.setdefault(DOMAIN, {})
     if not hass.data[DOMAIN].get("api_registered"):
+        # Lazy import to avoid import-time side effects during config flow discovery
+        from .api import register_api  # noqa: WPS433 (local import by design)
         # Register WebSocket API commands (idempotent via our flag)
         register_api(hass)
         hass.data[DOMAIN]["api_registered"] = True
