@@ -5,6 +5,8 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+from homeassistant.components import frontend
+from pathlib import Path
 
 from .const import DOMAIN
 from .storage import RecipeStorage
@@ -55,6 +57,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     
     # Setup platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    # Serve and auto-load the bundled Lovelace card (no build step required)
+    try:
+        card_path = Path(__file__).parent / "www" / "recipecards-card.js"
+        if card_path.exists():
+            url_path = "/recipecards/recipecards-card.js"
+            hass.http.register_static_path(url_path, str(card_path))
+            frontend.add_extra_js_url(hass, url_path)
+    except Exception:  # noqa: BLE001 - best-effort frontend helper
+        # Card auto-loading is best-effort; backend still functions without it
+        pass
     
     return True
 
