@@ -52,3 +52,33 @@ async def test_async_list_recipes_with_entry(hass: HomeAssistant, setup_integrat
     assert isinstance(args[1], list)
     assert args[1][0]["id"] == "1"
     assert args[1][0]["title"] == "Test Recipe"
+
+
+async def test_async_list_recipes_aggregates_multiple_entries(hass: HomeAssistant, setup_integration):
+    entry1 = "e1"
+    entry2 = "e2"
+    storage1 = AsyncMock()
+    storage1.async_load_recipes.return_value = [
+        Recipe(id="1", title="R1", ingredients=[], instructions=[], color="#FFD700")
+    ]
+    storage2 = AsyncMock()
+    storage2.async_load_recipes.return_value = [
+        Recipe(id="2", title="R2", ingredients=[], instructions=[], color="#FFD700")
+    ]
+    hass.data[DOMAIN] = {
+        entry1: {"storage": storage1, "coordinator": AsyncMock()},
+        entry2: {"storage": storage2, "coordinator": AsyncMock()},
+    }
+
+    connection = AsyncMock()
+    msg = {"id": 2}
+
+    await async_list_recipes(hass, connection, msg)
+
+    connection.send_result.assert_called_once()
+    args, kwargs = connection.send_result.call_args
+    assert args[0] == 2
+    data = args[1]
+    assert len(data) == 2
+    ids = set(d["id"] for d in data)
+    assert {"1", "2"}.issubset(ids)

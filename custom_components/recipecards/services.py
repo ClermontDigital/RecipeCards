@@ -4,6 +4,7 @@ import voluptuous as vol
 import uuid
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import entity_registry as er
 from .const import DOMAIN
 from .models import Recipe
 
@@ -87,28 +88,55 @@ DELETE_RECIPE_SCHEMA = vol.Schema({
 })
 
 def _get_storage_and_coordinator(hass: HomeAssistant, config_entry_id: str = None):
-    """Get the storage and coordinator for a specific config entry or auto-detect."""
+    """Get the storage and coordinator for a specific config entry or auto-detect.
+
+    Returns a tuple (storage, coordinator, entry_id) where entry_id is the
+    selected config entry id or None if not found.
+    """
     if DOMAIN not in hass.data:
-        return None, None
+        return None, None, None
     
     # If config_entry_id is provided, use it directly
     if config_entry_id and config_entry_id in hass.data[DOMAIN]:
         entry_data = hass.data[DOMAIN][config_entry_id]
-        return entry_data.get("storage"), entry_data.get("coordinator")
+        return entry_data.get("storage"), entry_data.get("coordinator"), config_entry_id
     
     # Auto-detect: find the first available config entry
     for entry_id, entry_data in hass.data[DOMAIN].items():
         storage = entry_data.get("storage")
         coordinator = entry_data.get("coordinator")
         if storage and coordinator:
-            return storage, coordinator
+            return storage, coordinator, entry_id
     
-    return None, None
+    return None, None, None
+
+
+def cleanup_recipe_entities(hass: HomeAssistant, entry_id: str, recipe_id: str) -> None:
+    """Remove entity registry entries for a deleted recipe.
+
+    We match entities with unique_id pattern f"{entry_id}_{recipe_id}" under the
+    recipecards sensor platform and remove them.
+    """
+    try:
+        registry = er.async_get(hass)
+        target_unique_id = f"{entry_id}_{recipe_id}"
+        to_remove = [
+            e.entity_id
+            for e in registry.entities.values()
+            if e.platform == "sensor"
+            and e.config_entry_id == entry_id
+            and e.unique_id == target_unique_id
+        ]
+        for entity_id in to_remove:
+            registry.async_remove(entity_id)
+    except Exception:  # noqa: BLE001
+        # Best-effort cleanup
+        pass
 
 async def async_add_recipe(call: ServiceCall) -> None:
     """Handle add recipe service call."""
     config_entry_id = call.data.get(ATTR_CONFIG_ENTRY_ID)
-    storage, coordinator = _get_storage_and_coordinator(call.hass, config_entry_id)
+    storage, coordinator, entry_id = _get_storage_and_coordinator(call.hass, config_entry_id)
     
     if not storage or not coordinator:
         if config_entry_id:
@@ -139,7 +167,7 @@ async def async_add_recipe(call: ServiceCall) -> None:
 async def async_update_recipe(call: ServiceCall) -> None:
     """Handle update recipe service call."""
     config_entry_id = call.data.get(ATTR_CONFIG_ENTRY_ID)
-    storage, coordinator = _get_storage_and_coordinator(call.hass, config_entry_id)
+    storage, coordinator, entry_id = _get_storage_and_coordinator(call.hass, config_entry_id)
 
     if not storage or not coordinator:
         if config_entry_id:
@@ -176,7 +204,7 @@ async def async_update_recipe(call: ServiceCall) -> None:
 async def async_delete_recipe(call: ServiceCall) -> None:
     """Handle delete recipe service call."""
     config_entry_id = call.data.get(ATTR_CONFIG_ENTRY_ID)
-    storage, coordinator = _get_storage_and_coordinator(call.hass, config_entry_id)
+    storage, coordinator, entry_id = _get_storage_and_coordinator(call.hass, config_entry_id)
 
     if not storage or not coordinator:
         if config_entry_id:
@@ -187,6 +215,9 @@ async def async_delete_recipe(call: ServiceCall) -> None:
     
     recipe_id = call.data[ATTR_RECIPE_ID]
     await storage.async_delete_recipe(recipe_id)
+    # Remove the per-recipe entity if present
+    if entry_id:
+        cleanup_recipe_entities(call.hass, entry_id, recipe_id)
     await coordinator.async_request_refresh()
     _LOGGER.info("Deleted recipe: %s", recipe_id)
 

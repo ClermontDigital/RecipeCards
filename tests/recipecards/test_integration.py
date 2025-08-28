@@ -17,42 +17,28 @@ async def test_async_setup_registers_ws_flag():
     assert hass.data[DOMAIN]["api_registered"] is True
 
 @pytest.mark.asyncio
-async def test_config_flow_user_step():
+async def test_config_flow_user_step_shows_form():
     flow = RecipeCardsConfigFlow()
     flow.hass = MagicMock()
-    flow.hass.config_entries = MagicMock()
-    flow.hass.config_entries.async_entries = MagicMock(return_value=[])
     
     result = await flow.async_step_user()
-    
+    assert result["type"] == "form"
+    assert result["step_id"] == "user"
+
+@pytest.mark.asyncio
+async def test_config_flow_user_submit_creates_entry_with_initial_recipe():
+    flow = RecipeCardsConfigFlow()
+    flow.hass = MagicMock()
+    user_input = {
+        "recipe_title": "My First",
+        "recipe_description": "desc",
+        "recipe_ingredients": "a\nb",
+        "recipe_notes": "n",
+        "recipe_instructions": "s1\ns2",
+        "recipe_color": "#112233",
+    }
+
+    result = await flow.async_step_user(user_input)
     assert result["type"] == "create_entry"
-    assert result["title"] == "Recipe Cards"
-    assert result["data"] == {}
-
-@pytest.mark.asyncio
-async def test_config_flow_single_instance():
-    flow = RecipeCardsConfigFlow()
-    flow.hass = MagicMock()
-    
-    # Mock existing entry
-    mock_entry = MagicMock()
-    mock_entry.domain = "recipecards"
-    flow.hass.config_entries = MagicMock()
-    flow.hass.config_entries.async_entries = MagicMock(return_value=[mock_entry])
-    
-    result = await flow.async_step_user()
-    
-    assert result["type"] == "abort"
-    assert result["reason"] == "single_instance_allowed"
-
-@pytest.mark.asyncio
-async def test_config_flow_single_instance():
-    flow = RecipeCardsConfigFlow()
-    flow.hass = MagicMock()
-    # Mock an existing entry via underlying helper
-    flow._async_current_entries = MagicMock(return_value=[MagicMock(domain=DOMAIN)])
-
-    result = await flow.async_step_user()
-
-    assert result["type"] == "abort"
-    assert result["reason"] == "single_instance_allowed"
+    assert result["title"] == "My First"
+    assert "initial_recipe" in result["data"]

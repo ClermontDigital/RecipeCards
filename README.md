@@ -2,7 +2,7 @@
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![HACS Badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/custom-components/hacs)
-[![Version](https://img.shields.io/badge/version-1.4.1-green.svg)](https://github.com/ClermontDigital/RecipeCards)
+[![Version](https://img.shields.io/badge/version-1.5.0-green.svg)](https://github.com/ClermontDigital/RecipeCards)
 
 Retro-style recipe card management for Home Assistant. Store, browse, and display recipes in a classic 80s-inspired card interface with flip animations and persistent storage.
 
@@ -29,11 +29,17 @@ Retro-style recipe card management for Home Assistant. Store, browse, and displa
 4. Add integration via Settings → Devices & Services
 
 ### Configuration
-1. **Add RecipeCards Integration:**
+1. **Add RecipeCards Integration (Multiple Entries Supported):**
    - Go to Settings → Devices & Services
    - Click "Add Integration"
    - Search for "Recipe Cards"
-   - Complete the setup
+   - You can optionally enter a full initial recipe (title, description, ingredients, notes, instructions, color). Use one line per ingredient/instruction.
+   - Submit to create the entry
+
+   After the first entry, you can use the blue "Add entry" button on the
+   Recipe Cards integration page to add more entries. Each entry creates:
+   - A collection device called "Recipe Cards" for that entry, and
+   - One device per recipe (exposed as a sensor with recipe attributes)
 
 2. **Add Lovelace Card:**
    - No build step required. The card is auto-loaded and auto-registered as a Lovelace resource by the integration on storage dashboards.
@@ -53,11 +59,12 @@ Retro-style recipe card management for Home Assistant. Store, browse, and displa
 ## Usage
 
 ### Entities Created
-- `sensor.recipe_cards` - Shows total number of stored recipes with recipe data in attributes
+- `sensor.recipe_cards` (per entry) – Shows total number of stored recipes with recipe data in attributes
+- `sensor.<recipe_title>` (per recipe) – A sensor entity representing a single recipe. Its attributes include `title`, `description`, `ingredients`, `instructions`, `notes`, and `color`.
 
 ### Easy Recipe Management
 
-RecipeCards now provides **simplified** recipe management - no config entry IDs needed!
+RecipeCards now provides **simplified** recipe management - no config entry IDs needed! If you have multiple entries, the built‑in UI and API aggregate recipes from all entries. You can still target a specific entry by passing `config_entry_id` (services) or `entry_id` (WebSocket API).
 
 **Add Recipe (Simple):**
 ```yaml
@@ -139,7 +146,7 @@ For automation or advanced usage:
 **Collection View (Default):**
 ```yaml
 type: custom:recipecards-card
-entity: sensor.recipe_cards
+entity: sensor.recipe_cards  # optional; uses WS API by default
 title: "My Recipes"  # Optional custom title
 ```
 
@@ -156,6 +163,7 @@ view: detail
 - **Responsive Design**: Works on desktop and mobile devices
 - **Loading States**: Shows loading indicators while fetching recipe data
 - **Color Coding**: Each recipe has a customizable header color
+ - **Entry Filter**: When multiple entries exist, a dropdown filter appears. You can also target a specific entry with `entry_id: <ENTRY_ID>`.
 
 ## Quick Start Guide
 
@@ -209,6 +217,9 @@ data:
     - "Step 2"
   color: "#FF6B35"
 ```
+
+### Method 4: Options Flow (Add via Settings)
+From the integration entry row, click Configure. Choose "Add recipe" to add recipes directly from the options dialog (newline‑separated ingredients/instructions). Repeat to add multiple; choose "Finish" when done.
 
 ## Troubleshooting
 

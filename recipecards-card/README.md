@@ -39,5 +39,34 @@ Test coverage includes:
 3. Add the card as a resource in Lovelace
 4. Use `<recipecards-card>` in your dashboard
 
+### Configuration options
+
+- `entity` (optional): legacy sensor entity; used as a fallback only
+- `entry_id` (optional): target a specific RecipeCards config entry
+- `recipe_id` (optional): load a single recipe directly (detail view)
+- `title` (optional): custom title for the collection view
+- `view` (optional): `collection` or `detail`; defaults to `detail` when `recipe_id` is set
+
+Examples:
+
+All recipes (aggregated across entries):
+```
+type: custom:recipecards-card
+```
+
+Only recipes from a specific entry:
+```
+type: custom:recipecards-card
+entry_id: abcdef1234567890
+```
+
+Single recipe by id (detail view):
+```
+type: custom:recipecards-card
+recipe_id: 9e1a2b3c-...
+```
+
+When multiple entries are present, the card renders an entry filter in the header. The filter also controls which `config_entry_id` is used for Add/Edit/Delete operations.
+
 ## Author
 @ClermontDigital

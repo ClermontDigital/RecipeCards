@@ -23,7 +23,8 @@ describe('RecipeCardsCard', () => {
               ingredients: ['1 cup flour', '1 cup milk'],
               notes: 'Serve with syrup',
               instructions: ['Mix ingredients', 'Cook on griddle'],
-              color: '#FFD700'
+              color: '#FFD700',
+              _entry_id: 'e1'
             },
             {
               id: 'recipe2',
@@ -32,7 +33,8 @@ describe('RecipeCardsCard', () => {
               ingredients: ['3 eggs', 'Cheese'],
               notes: 'Add vegetables if desired',
               instructions: ['Beat eggs', 'Cook in pan'],
-              color: '#FFA500'
+              color: '#FFA500',
+              _entry_id: 'e2'
             }
           ];
         }
@@ -48,7 +50,8 @@ describe('RecipeCardsCard', () => {
           };
         }
         throw new Error('Unknown API call');
-      }
+      },
+      callService: async () => {}
     };
   });
 
@@ -303,5 +306,41 @@ describe('RecipeCardsCard', () => {
     );
     expect(cardRegistration).to.exist;
     expect(cardRegistration.name).to.equal('RecipeCards Card');
+  });
+
+  it('passes config_entry_id to services when entry_id configured', async () => {
+    let captured: any | undefined;
+    (window as any).hass.callService = async (_d: string, _s: string, data: any) => {
+      captured = data;
+    };
+
+    element = await fixture(html`<recipecards-card></recipecards-card>`);
+    element.setConfig({ type: 'recipecards-card', entry_id: 'e1' });
+
+    await new Promise((r) => setTimeout(r, 150));
+
+    // Open add modal
+    const addBtn = element.shadowRoot?.querySelector('.add-recipe-btn') as HTMLElement;
+    addBtn?.click();
+    await new Promise((r) => setTimeout(r, 0));
+
+    // Fill and submit minimal form
+    const form = element.shadowRoot?.querySelector('form') as HTMLFormElement;
+    (form.querySelector('[name="title"]') as HTMLInputElement).value = 'New';
+    (form.querySelector('[name="ingredients"]') as HTMLTextAreaElement).value = 'i1';
+    (form.querySelector('[name="instructions"]') as HTMLTextAreaElement).value = 's1';
+    form.dispatchEvent(new Event('submit'));
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(captured).to.exist;
+    expect(captured.config_entry_id).to.equal('e1');
+  });
+
+  it('shows entry filter when multiple sets present', async () => {
+    element = await fixture(html`<recipecards-card></recipecards-card>`);
+    element.setConfig({ type: 'recipecards-card' });
+    await new Promise((r) => setTimeout(r, 150));
+    const select = element.shadowRoot?.querySelector('select');
+    expect(select).to.exist;
   });
 }); 
