@@ -2,7 +2,7 @@
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![HACS Badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/custom-components/hacs)
-[![Version](https://img.shields.io/badge/version-1.5.2-green.svg)](https://github.com/ClermontDigital/RecipeCards)
+[![Version](https://img.shields.io/badge/version-1.6.0-green.svg)](https://github.com/ClermontDigital/RecipeCards)
 
 Retro-style recipe card management for Home Assistant. Store, browse, and display recipes in a classic 80s-inspired card interface with flip animations and persistent storage.
 
@@ -103,6 +103,10 @@ data:
 
 > **Note:** Config entry IDs are now auto-detected! You only need to specify `config_entry_id` if you have multiple RecipeCards integrations.
 
+### Sections (Groups)
+
+Each integration entry is a “section” (e.g., Desserts, Mains). Add multiple entries to create multiple sections. The Lovelace card groups recipes by section and shows an Add button for each section.
+
 ### New Recipe Collection View
 
 The RecipeCards card now features two modes:
@@ -110,11 +114,17 @@ The RecipeCards card now features two modes:
 1. **Collection View (Default)**: Browse all recipes as colored tiles with built-in add/edit/delete functionality
 2. **Detail View**: Classic single-recipe card with flip animation
 
-**Basic Setup:**
+**Basic Setup (all sections):**
 ```yaml
 type: custom:recipecards-card
 entity: sensor.recipe_cards
 title: "My Recipe Collection"
+```
+
+**Group by section explicitly:**
+```yaml
+type: custom:recipecards-card
+group_by: entry
 ```
 
 **Force Detail View:**
@@ -163,6 +173,7 @@ view: detail
 - **Responsive Design**: Works on desktop and mobile devices
 - **Loading States**: Shows loading indicators while fetching recipe data
 - **Color Coding**: Each recipe has a customizable header color
+ - **Sections**: When multiple entries exist, the card groups recipes by section title
  - **Entry Filter**: When multiple entries exist, a dropdown filter appears. You can also target a specific entry with `entry_id: <ENTRY_ID>`.
 
 ## Quick Start Guide

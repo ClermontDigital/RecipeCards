@@ -41,10 +41,10 @@ class RecipeCardsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle the initial step."""
-        # Allow multiple entries. If the user provides a title we treat it as
-        # a request to create an initial recipe for this entry.
+        # Allow multiple entries. Each entry represents a "section" (e.g., Desserts).
         schema = vol.Schema(
             {
+                vol.Required("section_name"): str,
                 vol.Optional("recipe_title", default=""): str,
                 vol.Optional("recipe_description", default=""): str,
                 vol.Optional("recipe_ingredients", default=""): str,  # one per line
@@ -75,8 +75,10 @@ class RecipeCardsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 "color": _validate_color(user_input.get("recipe_color") or "#FFD700"),
             }
 
+        section_name = (user_input.get("section_name") or "Recipe Cards").strip() or "Recipe Cards"
+
         return self.async_create_entry(
-            title=title or "Recipe Cards",
+            title=section_name,
             data={"initial_recipe": initial_recipe} if initial_recipe else {},
         )
 

@@ -9,6 +9,8 @@ interface RecipeCardsConfig {
   entry_id?: string;
   // Load a single recipe directly
   recipe_id?: string;
+  // Grouping behavior
+  group_by?: 'entry' | 'none';
   title?: string;
   view?: 'collection' | 'detail';
 }
@@ -766,40 +768,71 @@ export class RecipeCardsCard extends LitElement {
       `;
     }
 
+    const groupByEntry = this.config?.group_by === 'entry' || (this.config?.group_by !== 'none' && entryIds.length > 1);
+
+    if (!groupByEntry) {
+      return html`
+        <div class="collection-container">
+          <div class="collection-header">
+            <div class="collection-title">${this.config?.title || 'Recipe Collection'}</div>
+            <button class="add-recipe-btn" @click=${this.openAddModal} title="Add Recipe">+</button>
+          </div>
+          <div class="recipes-grid">
+            ${this.recipes.map(recipe => html`
+              <div class="recipe-tile" @click=${() => this.viewRecipe(recipe)} tabindex="0" role="button" aria-label="View recipe: ${recipe.title}">
+                <div class="recipe-tile-header" style="background-color: ${recipe.color}">
+                  <div class="recipe-tile-title">${this.sanitizeText(recipe.title)}</div>
+                  <div class="recipe-tile-desc">${this.sanitizeText(recipe.description)}</div>
+                </div>
+                <div class="recipe-tile-info">
+                  <small>🥘 ${recipe.ingredients.length} ingredients • 📝 ${recipe.instructions.length} steps</small>
+                </div>
+                <div class="recipe-tile-actions">
+                  <button class="recipe-action-btn" @click=${(e: Event) => { e.stopPropagation(); this.openEditModal(recipe); }}>Edit</button>
+                  <button class="recipe-action-btn delete" @click=${(e: Event) => this.deleteRecipe(recipe.id, e)}>Delete</button>
+                </div>
+              </div>
+            `)}
+          </div>
+        </div>
+      `;
+    }
+
+    // Grouped by entry (section)
+    const groups: Record<string, { title: string; id: string; recipes: any[] }> = {};
+    (this.recipes as any[]).forEach((r: any) => {
+      const id = r._entry_id || 'unknown';
+      const title = r._entry_title || `Set ${String(id).slice(0, 6)}`;
+      if (!groups[id]) groups[id] = { title, id, recipes: [] };
+      groups[id].recipes.push(r);
+    });
+
     return html`
-      <div class="collection-container">
-        <div class="collection-header">
-          <div class="collection-title">${this.config?.title || 'Recipe Collection'}</div>
-          ${entryIds.length > 1 || this.config?.entry_id ? html`
-            <select @change=${(e: any) => { this.selectedEntryFilter = e.target.value; this.updateRecipes(); }}>
-              <option value="all" ?selected=${this.selectedEntryFilter === 'all'}>All sets</option>
-              ${entryIds.map(id => html`<option value="${id}" ?selected=${this.selectedEntryFilter === id}>Set ${id.slice(0, 6)}</option>`) }
-            </select>
-          ` : ''}
-          <button class="add-recipe-btn" @click=${this.openAddModal} title="Add Recipe">+</button>
+      ${Object.values(groups).map(group => html`
+        <div class="collection-container">
+          <div class="collection-header">
+            <div class="collection-title">${group.title}</div>
+            <button class="add-recipe-btn" @click=${() => { this.selectedEntryFilter = group.id; this.openAddModal(); }} title="Add Recipe to ${group.title}">+</button>
+          </div>
+          <div class="recipes-grid">
+            ${group.recipes.map(recipe => html`
+              <div class="recipe-tile" @click=${() => this.viewRecipe(recipe)} tabindex="0" role="button" aria-label="View recipe: ${recipe.title}">
+                <div class="recipe-tile-header" style="background-color: ${recipe.color}">
+                  <div class="recipe-tile-title">${this.sanitizeText(recipe.title)}</div>
+                  <div class="recipe-tile-desc">${this.sanitizeText(recipe.description)}</div>
+                </div>
+                <div class="recipe-tile-info">
+                  <small>🥘 ${recipe.ingredients.length} ingredients • 📝 ${recipe.instructions.length} steps</small>
+                </div>
+                <div class="recipe-tile-actions">
+                  <button class="recipe-action-btn" @click=${(e: Event) => { e.stopPropagation(); this.openEditModal(recipe); }}>Edit</button>
+                  <button class="recipe-action-btn delete" @click=${(e: Event) => this.deleteRecipe(recipe.id, e)}>Delete</button>
+                </div>
+              </div>
+            `)}
+          </div>
         </div>
-        <div class="recipes-grid">
-          ${this.recipes
-            .filter((r: any) => this.selectedEntryFilter === 'all' || r._entry_id === this.selectedEntryFilter)
-            .map(recipe => html`
-            <div class="recipe-tile" @click=${() => this.viewRecipe(recipe)} 
-                 @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.viewRecipe(recipe); } }}
-                 tabindex="0" role="button" aria-label="View recipe: ${recipe.title}">
-              <div class="recipe-tile-header" style="background-color: ${recipe.color}">
-                <div class="recipe-tile-title">${this.sanitizeText(recipe.title)}</div>
-                <div class="recipe-tile-desc">${this.sanitizeText(recipe.description)}</div>
-              </div>
-              <div class="recipe-tile-info">
-                <small>🥘 ${recipe.ingredients.length} ingredients • 📝 ${recipe.instructions.length} steps</small>
-              </div>
-              <div class="recipe-tile-actions">
-                <button class="recipe-action-btn" @click=${(e: Event) => { e.stopPropagation(); this.openEditModal(recipe); }}>Edit</button>
-                <button class="recipe-action-btn delete" @click=${(e: Event) => this.deleteRecipe(recipe.id, e)}>Delete</button>
-              </div>
-            </div>
-          `)}
-        </div>
-      </div>
+      `)}
     `;
   }
 
