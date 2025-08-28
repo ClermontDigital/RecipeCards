@@ -10,5 +10,13 @@
       }
     }
   }
+  ,
+  "options": {
+    "step": {
+      "init": {
+        "title": "Recipe Cards",
+        "description": "No options here. Add and manage recipes via the Lovelace card or the recipecards.* services in Developer Tools."
+      }
+    }
+  }
 }
-
