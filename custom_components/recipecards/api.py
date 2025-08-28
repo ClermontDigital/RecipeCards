@@ -153,8 +153,8 @@ async def async_delete_recipe(hass: HomeAssistant, connection: websocket_api.Act
 def register_api(hass: HomeAssistant) -> None:
     """Register the WebSocket API commands."""
     _LOGGER.info("Registering Recipe Cards WebSocket API")
-    hass.components.websocket_api.async_register_command(async_list_recipes)
-    hass.components.websocket_api.async_register_command(async_get_recipe)
-    hass.components.websocket_api.async_register_command(async_add_recipe)
-    hass.components.websocket_api.async_register_command(async_update_recipe)
-    hass.components.websocket_api.async_register_command(async_delete_recipe)
+    websocket_api.async_register_command(hass, async_list_recipes)
+    websocket_api.async_register_command(hass, async_get_recipe)
+    websocket_api.async_register_command(hass, async_add_recipe)
+    websocket_api.async_register_command(hass, async_update_recipe)
+    websocket_api.async_register_command(hass, async_delete_recipe)
