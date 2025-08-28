@@ -9,7 +9,27 @@ from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 
 from .const import DOMAIN
-from .services import validate_color
+def _validate_color(value) -> str:
+    """Local color validator to avoid cross-module import during config flow.
+
+    Accepts '#RRGGBB' string, an RGB list [r,g,b], or a dict {r,g,b}.
+    """
+    import re
+    if isinstance(value, (list, tuple)) and len(value) == 3:
+        try:
+            r, g, b = (int(value[0]), int(value[1]), int(value[2]))
+            return f"#{r:02X}{g:02X}{b:02X}"
+        except Exception:  # noqa: BLE001
+            return "#FFD700"
+    if isinstance(value, dict) and all(k in value for k in ("r", "g", "b")):
+        try:
+            r, g, b = int(value["r"]), int(value["g"]), int(value["b"])
+            return f"#{r:02X}{g:02X}{b:02X}"
+        except Exception:  # noqa: BLE001
+            return "#FFD700"
+    if isinstance(value, str) and re.match(r"^#[0-9A-Fa-f]{6}$", value):
+        return value
+    return "#FFD700"
 
 
 class RecipeCardsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -30,7 +50,7 @@ class RecipeCardsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Optional("recipe_ingredients", default=""): str,  # one per line
                 vol.Optional("recipe_notes", default=""): str,
                 vol.Optional("recipe_instructions", default=""): str,  # one per line
-                vol.Optional("recipe_color", default="#FFD700"): validate_color,
+                vol.Optional("recipe_color", default="#FFD700"): _validate_color,
             }
         )
 
@@ -101,7 +121,7 @@ class RecipeCardsOptionsFlow(config_entries.OptionsFlow):
             vol.Optional("ingredients", default=""): str,  # one per line
             vol.Optional("notes", default=""): str,
             vol.Optional("instructions", default=""): str,  # one per line
-            vol.Optional("color", default="#FFD700"): validate_color,
+            vol.Optional("color", default="#FFD700"): _validate_color,
         })
 
         if user_input is None:
