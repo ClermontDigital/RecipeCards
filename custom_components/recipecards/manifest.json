@@ -1,12 +1,12 @@
 {
   "domain": "recipecards",
   "name": "Recipe Cards",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "documentation": "https://github.com/ClermontDigital/RecipeCards",
   "requirements": [],
   "dependencies": [],
   "codeowners": ["@ClermontDigital"],
   "issue_tracker": "https://github.com/ClermontDigital/RecipeCards/issues",
   "config_flow": true,
-  "iot_class": "local_polling"
+  "iot_class": "local_push"
 }

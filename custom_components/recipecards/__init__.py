@@ -65,6 +65,33 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             url_path = "/recipecards/recipecards-card.js"
             hass.http.register_static_path(url_path, str(card_path))
             frontend.add_extra_js_url(hass, url_path)
+
+            # Also register as a Lovelace resource so the card shows up in the editor
+            # and survives cached page loads. This mirrors what HACS does for plugins.
+            try:
+                from homeassistant.components.lovelace.resources import (
+                    async_get_registry,
+                )
+
+                async def _ensure_lovelace_resource() -> None:
+                    registry = await async_get_registry(hass)
+                    # registry.async_items() returns ResourceEntry objects
+                    existing = False
+                    for item in registry.async_items():
+                        url = getattr(item, "url", None) if not isinstance(item, dict) else item.get("url")
+                        if url == url_path:
+                            existing = True
+                            break
+                    if not existing:
+                        await registry.async_create_item({
+                            "res_type": "module",
+                            "url": url_path,
+                        })
+
+                # Fire and forget; we don't want setup to fail on older cores
+                hass.async_create_task(_ensure_lovelace_resource())
+            except Exception:  # noqa: BLE001 - best-effort; older cores may lack API
+                pass
     except Exception:  # noqa: BLE001 - best-effort frontend helper
         # Card auto-loading is best-effort; backend still functions without it
         pass

@@ -2,7 +2,7 @@
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![HACS Badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/custom-components/hacs)
-[![Version](https://img.shields.io/badge/version-1.3.0-green.svg)](https://github.com/ClermontDigital/RecipeCards)
+[![Version](https://img.shields.io/badge/version-1.4.0-green.svg)](https://github.com/ClermontDigital/RecipeCards)
 
 Retro-style recipe card management for Home Assistant. Store, browse, and display recipes in a classic 80s-inspired card interface with flip animations and persistent storage.
 
@@ -36,11 +36,19 @@ Retro-style recipe card management for Home Assistant. Store, browse, and displa
    - Complete the setup
 
 2. **Add Lovelace Card:**
-   - No build step required. The card is auto-loaded by the integration.
+   - No build step required. The card is auto-loaded and auto-registered as a Lovelace resource by the integration on storage dashboards.
    - Edit your dashboard → Add card → Manual
    - YAML:
      - `type: custom:recipecards-card`
      - `entity: sensor.recipe_cards`
+
+   If you use YAML‑mode dashboards, add a resource manually:
+   ```yaml
+   lovelace:
+     resources:
+       - url: /recipecards/recipecards-card.js
+         type: module
+   ```
 
 ## Usage
 
