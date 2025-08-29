@@ -8,6 +8,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.components import frontend
 from pathlib import Path
 import json
+import shutil
 
 from .const import DOMAIN
 from .storage import RecipeStorage
@@ -108,6 +109,31 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             except Exception:  # noqa: BLE001
                 pass
 
+            # Fallback: also copy to /config/www and register under /local
+            try:
+                cfg_www = Path(hass.config.path("www"))
+                if not cfg_www.exists():
+                    cfg_www.mkdir(parents=True, exist_ok=True)
+                local_path = cfg_www / "recipecards-card.js"
+                # Copy if missing or different size
+                try:
+                    need_copy = (not local_path.exists()) or (local_path.stat().st_size != card_path.stat().st_size)
+                except Exception:  # noqa: BLE001
+                    need_copy = True
+                if need_copy:
+                    try:
+                        shutil.copyfile(str(card_path), str(local_path))
+                    except Exception:  # noqa: BLE001
+                        pass
+                local_url_base = "/local/recipecards-card.js"
+                local_versioned = f"{local_url_base}?v={version}" if version else local_url_base
+                try:
+                    frontend.add_extra_js_url(hass, local_versioned)
+                except Exception:  # noqa: BLE001
+                    pass
+            except Exception:  # noqa: BLE001
+                pass
+
             # Also register as a Lovelace resource so the card shows up in the editor
             # and survives cached page loads. This mirrors what HACS does for plugins.
             try:
@@ -139,6 +165,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                             "res_type": "js",
                             "url": versioned_url,
                         })
+
+                    # Ensure /local fallback is also present
+                    try:
+                        local_url_base = "/local/recipecards-card.js"
+                        local_versioned = f"{local_url_base}?v={version}" if version else local_url_base
+                        has_local = False
+                        for item in registry.async_items():
+                            url = getattr(item, "url", None) if not isinstance(item, dict) else item.get("url")
+                            if url and url.split("?")[0] == local_url_base:
+                                has_local = True
+                                break
+                        if not has_local:
+                            await registry.async_create_item({"res_type": "js", "url": local_versioned})
+                    except Exception:  # noqa: BLE001
+                        pass
 
                 # Fire and forget; we don't want setup to fail on older cores
                 hass.async_create_task(_ensure_lovelace_resource())

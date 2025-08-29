@@ -2,7 +2,7 @@
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![HACS Badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/custom-components/hacs)
-[![Version](https://img.shields.io/badge/version-1.7.1-green.svg)](https://github.com/ClermontDigital/RecipeCards)
+[![Version](https://img.shields.io/badge/version-1.7.2-green.svg)](https://github.com/ClermontDigital/RecipeCards)
 
 Retro-style recipe card management for Home Assistant. Store, browse, and display recipes in a classic 80s-inspired card interface with flip animations and persistent storage.
 
@@ -29,7 +29,9 @@ Retro-style recipe card management for Home Assistant. Store, browse, and displa
 4. Add integration via Settings → Devices & Services
 
 ### Lovelace Card Auto-Loading
-The bundled buildless card is automatically served and registered as a Lovelace resource. No manual resource configuration is needed in storage dashboards. The integration also adds a version parameter to the resource URL (e.g., `/recipecards/recipecards-card.js?v=1.7.1`) to bust browser caches after upgrades.
+The bundled buildless card is automatically served and registered as a Lovelace resource. No manual resource configuration is needed in storage dashboards. The integration also adds a version parameter to the resource URL (e.g., `/recipecards/recipecards-card.js?v=1.7.2`) to bust browser caches after upgrades.
+
+If your environment blocks direct static paths, the integration also copies the file to `/config/www/` and registers the fallback resource at `/local/recipecards-card.js?v=1.7.2`.
 
 ### Configuration
 1. **Add RecipeCards Integration (Multiple Sections Supported):**
