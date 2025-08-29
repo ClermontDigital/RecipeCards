@@ -72,7 +72,7 @@ class RecipeCardsCollectionSensor(CoordinatorEntity, SensorEntity):
         return DeviceInfo(
             identifiers={(DOMAIN, self._config_entry.entry_id)},
             name="Recipe Cards",
-            manufacturer="ClermontDigital",
+            manufacturer="recipecards",
         )
 
     @property
@@ -136,7 +136,7 @@ class RecipeSensor(CoordinatorEntity, SensorEntity):
         return DeviceInfo(
             identifiers={(DOMAIN, f"{self._config_entry.entry_id}:{self._recipe_id}")},
             name=title,
-            manufacturer="ClermontDigital",
+            manufacturer="recipecards",
             via_device=(DOMAIN, self._config_entry.entry_id),
         )
 
