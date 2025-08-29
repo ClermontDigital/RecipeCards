@@ -1,3 +1,9 @@
+## 1.7.2
+
+- Fix: add resilient fallback to serve the card under `/local/recipecards-card.js` by copying the bundled file to `/config/www/` if direct static serving is unavailable on some setups
+- Ensure both `/recipecards/...` and `/local/...` resources are registered and cache-busted
+- Additional hardening for environments initializing HTTP later
+
 ## 1.7.1
 
 - Restore automatic loading of the bundled Lovelace card
