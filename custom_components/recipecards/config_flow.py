@@ -89,10 +89,10 @@ class RecipeCardsOptionsFlow(config_entries.OptionsFlow):
         """Collect full recipe fields and save to this entry's storage."""
         schema = vol.Schema({
             vol.Required("title"): str,
-            vol.Optional("description", default=""): str,
-            vol.Optional("ingredients", default=""): str,  # one per line
-            vol.Optional("notes", default=""): str,
-            vol.Optional("instructions", default=""): str,  # one per line
+            vol.Optional("description", default=""): cv.text,
+            vol.Optional("ingredients", default=""): cv.text,  # one per line
+            vol.Optional("notes", default=""): cv.text,
+            vol.Optional("instructions", default=""): cv.text,  # one per line
             vol.Optional("color", default="#FFD700"): str,
         })
 
@@ -182,10 +182,10 @@ class RecipeCardsOptionsFlow(config_entries.OptionsFlow):
 
         schema = vol.Schema({
             vol.Required("title", default=recipe.title): str,
-            vol.Optional("description", default=recipe.description or ""): str,
-            vol.Optional("ingredients", default="\n".join(recipe.ingredients or [])): str,
-            vol.Optional("notes", default=recipe.notes or ""): str,
-            vol.Optional("instructions", default="\n".join(recipe.instructions or [])): str,
+            vol.Optional("description", default=recipe.description or ""): cv.text,
+            vol.Optional("ingredients", default="\n".join(recipe.ingredients or [])): cv.text,
+            vol.Optional("notes", default=recipe.notes or ""): cv.text,
+            vol.Optional("instructions", default="\n".join(recipe.instructions or [])): cv.text,
             vol.Optional("color", default=recipe.color or "#FFD700"): str,
         })
 

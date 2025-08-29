@@ -103,6 +103,8 @@ def _get_storage_and_coordinator(hass: HomeAssistant, config_entry_id: str = Non
     
     # Auto-detect: find the first available config entry
     for entry_id, entry_data in hass.data[DOMAIN].items():
+        if not isinstance(entry_data, dict):
+            continue  # Skip non-dict entries like "api_registered"
         storage = entry_data.get("storage")
         coordinator = entry_data.get("coordinator")
         if storage and coordinator:
