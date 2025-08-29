@@ -53,17 +53,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     
     await coordinator.async_config_entry_first_refresh()
 
-    # If the config entry included an initial recipe, ensure it exists in storage
-    try:
-        initial = entry.data.get("initial_recipe") if isinstance(entry.data, dict) else None
-        if initial and isinstance(initial, dict):
-            recipes = await storage.async_load_recipes()
-            # Avoid duplicates by title within this entry's collection
-            if not any(r.title == initial.get("title") for r in recipes):
-                await storage.async_add_recipe(Recipe.from_dict(initial))
-                await coordinator.async_request_refresh()
-    except Exception:  # noqa: BLE001 - best effort, do not fail setup
-        pass
+    # No default recipe creation; entries represent empty sections
     
     # Register services
     await async_register_services(hass)

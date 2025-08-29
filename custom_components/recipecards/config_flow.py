@@ -42,45 +42,15 @@ class RecipeCardsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         """Handle the initial step."""
         # Allow multiple entries. Each entry represents a "section" (e.g., Desserts).
-        schema = vol.Schema(
-            {
-                vol.Required("section_name"): str,
-                vol.Optional("recipe_title", default=""): str,
-                vol.Optional("recipe_description", default=""): str,
-                vol.Optional("recipe_ingredients", default=""): str,  # one per line
-                vol.Optional("recipe_notes", default=""): str,
-                vol.Optional("recipe_instructions", default=""): str,  # one per line
-                vol.Optional("recipe_color", default="#FFD700"): str,
-            }
-        )
+        schema = vol.Schema({vol.Required("section_name"): str})
 
         if user_input is None:
             return self.async_show_form(step_id="user", data_schema=schema)
 
         # Store optional initial recipe payload in the entry data so setup can
         # create it in storage. Keeping it small avoids large config entries.
-        initial_recipe = None
-        title = (user_input.get("recipe_title") or "").strip()
-        if title:
-            # Parse newline-separated lists
-            def _split_lines(value: str) -> list[str]:
-                return [line.strip() for line in (value or "").splitlines() if line.strip()]
-
-            initial_recipe = {
-                "title": title,
-                "description": (user_input.get("recipe_description") or "").strip(),
-                "ingredients": _split_lines(user_input.get("recipe_ingredients") or ""),
-                "notes": (user_input.get("recipe_notes") or "").strip(),
-                "instructions": _split_lines(user_input.get("recipe_instructions") or ""),
-                "color": _validate_color(user_input.get("recipe_color") or "#FFD700"),
-            }
-
         section_name = (user_input.get("section_name") or "Recipe Cards").strip() or "Recipe Cards"
-
-        return self.async_create_entry(
-            title=section_name,
-            data={"initial_recipe": initial_recipe} if initial_recipe else {},
-        )
+        return self.async_create_entry(title=section_name, data={})
 
     @staticmethod
     @callback
@@ -101,11 +71,11 @@ class RecipeCardsOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_menu(
             step_id="init",
             menu_options={
-                "add_recipe": "add_recipe",
-                "edit_recipe": "select_recipe",
-                "delete_recipe": "select_recipe_delete",
-                "rename_section": "rename_section",
-                "finish": "finish",
+                "add_recipe": "Add new recipe",
+                "select_recipe": "Edit existing recipe",
+                "select_recipe_delete": "Delete recipe",
+                "rename_section": "Rename this section",
+                "finish": "Finish",
             },
         )
 
@@ -123,7 +93,7 @@ class RecipeCardsOptionsFlow(config_entries.OptionsFlow):
             vol.Optional("ingredients", default=""): str,  # one per line
             vol.Optional("notes", default=""): str,
             vol.Optional("instructions", default=""): str,  # one per line
-            vol.Optional("color", default="#FFD700"): _validate_color,
+            vol.Optional("color", default="#FFD700"): str,
         })
 
         if user_input is None:
@@ -139,7 +109,7 @@ class RecipeCardsOptionsFlow(config_entries.OptionsFlow):
             "ingredients": _split_lines(user_input.get("ingredients") or ""),
             "notes": (user_input.get("notes") or "").strip(),
             "instructions": _split_lines(user_input.get("instructions") or ""),
-            "color": user_input.get("color") or "#FFD700",
+            "color": _validate_color(user_input.get("color") or "#FFD700"),
         }
 
         # Persist asynchronously; ignore errors to keep flow resilient

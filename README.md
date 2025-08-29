@@ -2,7 +2,7 @@
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![HACS Badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/custom-components/hacs)
-[![Version](https://img.shields.io/badge/version-1.6.2-green.svg)](https://github.com/ClermontDigital/RecipeCards)
+[![Version](https://img.shields.io/badge/version-1.6.3-green.svg)](https://github.com/ClermontDigital/RecipeCards)
 
 Retro-style recipe card management for Home Assistant. Store, browse, and display recipes in a classic 80s-inspired card interface with flip animations and persistent storage.
 
@@ -29,12 +29,12 @@ Retro-style recipe card management for Home Assistant. Store, browse, and displa
 4. Add integration via Settings → Devices & Services
 
 ### Configuration
-1. **Add RecipeCards Integration (Multiple Entries Supported):**
+1. **Add RecipeCards Integration (Multiple Sections Supported):**
    - Go to Settings → Devices & Services
    - Click "Add Integration"
    - Search for "Recipe Cards"
-   - You can optionally enter a full initial recipe (title, description, ingredients, notes, instructions, color). Use one line per ingredient/instruction.
-   - Submit to create the entry
+   - Enter a Section name (e.g., Desserts)
+   - Submit to create an empty section (no recipe is created automatically)
 
    After the first entry, you can use the blue "Add entry" button on the
    Recipe Cards integration page to add more entries. Each entry creates:
@@ -230,12 +230,12 @@ data:
 ```
 
 ### Method 4: Options Flow (Add via Settings)
-From the integration entry row, click Configure. You’ll get a menu similar to Local Tuya:
-- Add new recipe: opens a full recipe form and saves to this section
-- Edit existing recipe: select a recipe then update it
-- Delete recipe: select a recipe to remove it
-- Rename this section: change the section’s title shown in the UI
-Repeat Add to add multiple recipes under the same section.
+From the integration entry row, click Configure. You’ll see a menu:
+- Add new recipe — opens a full recipe form and saves to this section
+- Edit existing recipe — select a recipe, then update it
+- Delete recipe — select a recipe to remove it
+- Rename this section — change the section title
+Repeat Add to create multiple recipes under the same section.
 
 ## Troubleshooting
 
