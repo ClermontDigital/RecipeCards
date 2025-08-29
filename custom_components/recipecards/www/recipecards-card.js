@@ -69,7 +69,9 @@
         } catch(err) {
           this._recipes = [];
           this._error = 'Failed to load recipes';
+          console.error('RecipeCards: Load error', err);
         }
+        console.log('RecipeCards: Loaded', this._recipes?.length, 'recipes');
       }
       this._render();
     }
@@ -300,7 +302,8 @@
           }
           dlg.close();
           // reload list to reflect changes
-          this._load();
+          console.log('RecipeCards: Recipe saved, reloading...');
+          await this._load();
         } catch (e) {
           // eslint-disable-next-line no-console
           console.error('Recipe save failed', e);
