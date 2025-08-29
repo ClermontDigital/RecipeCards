@@ -97,29 +97,17 @@ class RecipeCardsOptionsFlow(config_entries.OptionsFlow):
         self._config_entry = config_entry
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        """Main options menu, similar to Local Tuya's config menu."""
-        actions = {
-            "add_recipe": "Add new recipe",
-            "edit_recipe": "Edit existing recipe",
-            "delete_recipe": "Delete recipe",
-            "rename_section": "Rename this section",
-            "finish": "Finish",
-        }
-        schema = vol.Schema({vol.Required("action", default="add_recipe"): vol.In(actions)})
-
-        if user_input is None:
-            return self.async_show_form(step_id="init", data_schema=schema, last_step=False)
-
-        action = user_input.get("action")
-        if action == "add_recipe":
-            return await self.async_step_add_recipe()
-        if action == "edit_recipe":
-            return await self.async_step_select_recipe({"next": "edit"})
-        if action == "delete_recipe":
-            return await self.async_step_select_recipe({"next": "delete"})
-        if action == "rename_section":
-            return await self.async_step_rename_section()
-        return self.async_create_entry(title="", data={})
+        """Main options menu, using HA's menu UI to avoid schema validation issues."""
+        return self.async_show_menu(
+            step_id="init",
+            menu_options={
+                "add_recipe": "add_recipe",
+                "edit_recipe": "select_recipe",
+                "delete_recipe": "select_recipe_delete",
+                "rename_section": "rename_section",
+                "finish": "finish",
+            },
+        )
 
     def _get_storage_and_coordinator(self):
         domain_data = self.hass.data.get(DOMAIN, {})
@@ -164,12 +152,12 @@ class RecipeCardsOptionsFlow(config_entries.OptionsFlow):
         except Exception:  # noqa: BLE001
             pass
 
-        # Go back to main menu to allow more actions
-        return await self.async_step_init({"action": "add_recipe"})
+        # Back to menu
+        return await self.async_step_init()
 
     async def async_step_select_recipe(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Select a recipe to edit/delete."""
-        next_action = (user_input or {}).get("next", "edit")
+        next_action = "edit"
         storage, _ = self._get_storage_and_coordinator()
         titles: dict[str, str] = {}
         if storage:
@@ -185,11 +173,27 @@ class RecipeCardsOptionsFlow(config_entries.OptionsFlow):
         schema = vol.Schema({vol.Required("recipe_id"): vol.In(titles)})
         if user_input and user_input.get("recipe_id"):
             rid = user_input["recipe_id"]
-            if next_action == "edit":
-                return await self.async_step_edit_recipe({"recipe_id": rid})
-            if next_action == "delete":
-                return await self.async_step_delete_recipe({"recipe_id": rid})
+            return await self.async_step_edit_recipe({"recipe_id": rid})
         return self.async_show_form(step_id="select_recipe", data_schema=schema)
+
+    async def async_step_select_recipe_delete(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        """Select a recipe to delete."""
+        storage, _ = self._get_storage_and_coordinator()
+        titles: dict[str, str] = {}
+        if storage:
+            try:
+                recipes = await storage.async_load_recipes()
+                titles = {r.id: (r.title or r.id) for r in recipes}
+            except Exception:  # noqa: BLE001
+                titles = {}
+        if not titles:
+            return await self.async_step_init()
+
+        schema = vol.Schema({vol.Required("recipe_id"): vol.In(titles)})
+        if user_input and user_input.get("recipe_id"):
+            rid = user_input["recipe_id"]
+            return await self.async_step_delete_recipe({"recipe_id": rid})
+        return self.async_show_form(step_id="select_recipe_delete", data_schema=schema)
 
     async def async_step_edit_recipe(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Edit selected recipe."""
@@ -241,7 +245,7 @@ class RecipeCardsOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_delete_recipe(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         if user_input is None or "recipe_id" not in user_input:
-            return await self.async_step_select_recipe({"next": "delete"})
+            return await self.async_step_select_recipe_delete()
         rid = user_input["recipe_id"]
         storage, coordinator = self._get_storage_and_coordinator()
         if storage:
@@ -264,3 +268,6 @@ class RecipeCardsOptionsFlow(config_entries.OptionsFlow):
         except Exception:  # noqa: BLE001
             pass
         return await self.async_step_init()
+
+    async def async_step_finish(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        return self.async_create_entry(title="", data={})
