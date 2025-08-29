@@ -324,11 +324,17 @@
     }
   }
 
-  customElements.define('recipecards-card', RecipeCardsCard);
-  window.customCards = window.customCards || [];
-  window.customCards.push({
-    type: 'recipecards-card',
-    name: 'RecipeCards Card',
-    description: 'Browse, add, edit, and delete recipes',
-  });
+  try {
+    if (!customElements.get('recipecards-card')) {
+      customElements.define('recipecards-card', RecipeCardsCard);
+    }
+    window.customCards = window.customCards || [];
+    window.customCards.push({
+      type: 'recipecards-card',
+      name: 'RecipeCards Card',
+      description: 'Browse, add, edit, and delete recipes',
+    });
+  } catch (error) {
+    console.error('RecipeCards: Error registering custom element:', error);
+  }
 })();
