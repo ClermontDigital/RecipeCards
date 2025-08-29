@@ -1,3 +1,10 @@
+## 1.7.1
+
+- Restore automatic loading of the bundled Lovelace card
+- Add cache-busting to the served card URL using the integration version
+- Ensure Lovelace resource is auto-created/updated (no manual resource needed)
+- Documentation updates clarifying `entry_id` vs entity ids and examples
+
 ## 1.5.0
 
 - Multi-entry support: add multiple Recipe Cards entries (recipe sets)

@@ -2,7 +2,7 @@
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![HACS Badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/custom-components/hacs)
-[![Version](https://img.shields.io/badge/version-1.6.3-green.svg)](https://github.com/ClermontDigital/RecipeCards)
+[![Version](https://img.shields.io/badge/version-1.7.1-green.svg)](https://github.com/ClermontDigital/RecipeCards)
 
 Retro-style recipe card management for Home Assistant. Store, browse, and display recipes in a classic 80s-inspired card interface with flip animations and persistent storage.
 
@@ -28,6 +28,9 @@ Retro-style recipe card management for Home Assistant. Store, browse, and displa
 3. Restart Home Assistant
 4. Add integration via Settings → Devices & Services
 
+### Lovelace Card Auto-Loading
+The bundled buildless card is automatically served and registered as a Lovelace resource. No manual resource configuration is needed in storage dashboards. The integration also adds a version parameter to the resource URL (e.g., `/recipecards/recipecards-card.js?v=1.7.1`) to bust browser caches after upgrades.
+
 ### Configuration
 1. **Add RecipeCards Integration (Multiple Sections Supported):**
    - Go to Settings → Devices & Services
@@ -46,15 +49,15 @@ Retro-style recipe card management for Home Assistant. Store, browse, and displa
    - Edit your dashboard → Add card → Manual
    - YAML:
      - `type: custom:recipecards-card`
-     - `entity: sensor.recipe_cards`
+     - `entity: sensor.recipe_cards` (optional; the card uses the WS API by default)
 
-   If you use YAML‑mode dashboards, add a resource manually:
-   ```yaml
-   lovelace:
-     resources:
-       - url: /recipecards/recipecards-card.js
-         type: module
-   ```
+If you use YAML‑mode dashboards, add a resource manually:
+```yaml
+lovelace:
+  resources:
+    - url: /recipecards/recipecards-card.js
+      type: js
+```
 
 ## Usage
 
@@ -117,7 +120,6 @@ The RecipeCards card now features two modes:
 **Basic Setup (all sections):**
 ```yaml
 type: custom:recipecards-card
-entity: sensor.recipe_cards
 title: "My Recipe Collection"
 ```
 
@@ -133,6 +135,30 @@ type: custom:recipecards-card
 entity: sensor.recipe_cards
 view: detail
 ```
+
+**Single recipe via its entity:**
+```yaml
+type: custom:recipecards-card
+entity: sensor.recipe_chocolate_cake  # per-recipe sensor
+view: detail
+```
+
+**Single recipe via recipe_id:**
+```yaml
+type: custom:recipecards-card
+recipe_id: 01234567-89ab-cdef-0123-456789abcdef
+view: detail
+```
+
+**Tray Box View (flick through cards):**
+```yaml
+type: custom:recipecards-card
+view: tray
+# optional
+entry_id: <SECTION_ENTRY_ID>  # limit to a section
+title: "Recipe Box"
+```
+This renders a horizontal tray of mini cards (“dividers”). Click a card to view its full details below, or use Left/Right arrows to move between cards. The + button adds a recipe.
 
 ### Recipe Management Features
 

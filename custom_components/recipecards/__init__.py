@@ -7,6 +7,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.components import frontend
 from pathlib import Path
+import json
 
 from .const import DOMAIN
 from .storage import RecipeStorage
@@ -81,33 +82,62 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Serve and auto-load the bundled Lovelace card (no build step required)
     try:
-        card_path = Path(__file__).parent / "www" / "recipecards-card.js"
+        pkg_dir = Path(__file__).parent
+        card_path = pkg_dir / "www" / "recipecards-card.js"
         if card_path.exists():
-            url_path = "/recipecards/recipecards-card.js"
-            hass.http.register_static_path(url_path, str(card_path))
-            frontend.add_extra_js_url(hass, url_path)
+            url_base = "/recipecards/recipecards-card.js"
+
+            # Read the integration version for cache-busting
+            version = None
+            try:
+                manifest_path = pkg_dir / "manifest.json"
+                version = json.loads(manifest_path.read_text(encoding="utf-8")).get("version")
+            except Exception:  # noqa: BLE001
+                version = None
+            versioned_url = f"{url_base}?v={version}" if version else url_base
+
+            # Serve static file
+            try:
+                hass.http.register_static_path(url_base, str(card_path))
+            except Exception:  # noqa: BLE001 - path might already be registered
+                pass
+
+            # Load for all frontends (best-effort) and also register as Lovelace resource
+            try:
+                frontend.add_extra_js_url(hass, versioned_url)
+            except Exception:  # noqa: BLE001
+                pass
 
             # Also register as a Lovelace resource so the card shows up in the editor
             # and survives cached page loads. This mirrors what HACS does for plugins.
             try:
-                from homeassistant.components.lovelace.resources import (
-                    async_get_registry,
-                )
+                from homeassistant.components.lovelace.resources import async_get_registry
 
                 async def _ensure_lovelace_resource() -> None:
                     registry = await async_get_registry(hass)
                     # registry.async_items() returns ResourceEntry objects
-                    existing = False
+                    existing = None
                     for item in registry.async_items():
                         url = getattr(item, "url", None) if not isinstance(item, dict) else item.get("url")
-                        if url == url_path:
-                            existing = True
+                        if not url:
+                            continue
+                        # Match either bare or versioned url for upgrades
+                        if url.split("?")[0] == url_base:
+                            existing = item
                             break
-                    if not existing:
-                        # Use classic JS resource for our buildless IIFE card
+                    if existing:
+                        # Try to update URL to include the current version (cache-bust)
+                        try:
+                            await registry.async_update_item(getattr(existing, "id", existing["id"]), {  # type: ignore[index]
+                                "url": versioned_url,
+                            })
+                        except Exception:  # noqa: BLE001 - API differences across cores
+                            # If update not available, create alongside; frontend will de-dupe
+                            await registry.async_create_item({"res_type": "js", "url": versioned_url})
+                    else:
                         await registry.async_create_item({
                             "res_type": "js",
-                            "url": url_path,
+                            "url": versioned_url,
                         })
 
                 # Fire and forget; we don't want setup to fail on older cores
