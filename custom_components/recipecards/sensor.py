@@ -104,7 +104,8 @@ class RecipeSensor(CoordinatorEntity, SensorEntity):
         # Names and IDs fill in from current data at init; will update on refresh
         recipe = self._find()
         title = recipe.title if recipe else "Recipe"
-        self._attr_name = title
+        # Prefix name so new entity IDs are suggested as sensor.recipe_<slug(title)>
+        self._attr_name = f"Recipe {title}"
         self._attr_unique_id = f"{config_entry.entry_id}_{recipe_id}"
         self._attr_icon = "mdi:note-text"
 
@@ -119,7 +120,9 @@ class RecipeSensor(CoordinatorEntity, SensorEntity):
     @property
     def name(self) -> str:  # type: ignore[override]
         recipe = self._find()
-        return recipe.title if recipe else self._attr_name
+        if recipe:
+            return f"Recipe {recipe.title}".strip()
+        return self._attr_name
 
     @property
     def available(self) -> bool:  # type: ignore[override]

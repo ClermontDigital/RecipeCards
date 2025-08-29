@@ -60,7 +60,7 @@ Retro-style recipe card management for Home Assistant. Store, browse, and displa
 
 ### Entities Created
 - `sensor.recipe_cards` (per entry) – Shows total number of stored recipes with recipe data in attributes
-- `sensor.<recipe_title>` (per recipe) – A sensor entity representing a single recipe. Its attributes include `title`, `description`, `ingredients`, `instructions`, `notes`, and `color`.
+- `sensor.recipe_<title>` (per recipe) – A sensor entity representing a single recipe (prefix `recipe_`). Attributes include `title`, `description`, `ingredients`, `instructions`, `notes`, and `color`.
 
 ### Easy Recipe Management
 

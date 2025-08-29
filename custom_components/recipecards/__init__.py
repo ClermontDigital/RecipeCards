@@ -12,6 +12,8 @@ from .const import DOMAIN
 from .storage import RecipeStorage
 from .services import async_register_services, async_remove_services
 from .models import Recipe
+from homeassistant.helpers import entity_registry as er
+from homeassistant.util import slugify
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]
 
@@ -60,6 +62,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     
     # Setup platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    # Best-effort: migrate existing per-recipe entity_ids to prefix 'recipe_'
+    async def _migrate_entity_ids() -> None:
+        try:
+            registry = er.async_get(hass)
+            recipes = await storage.async_load_recipes()
+            for r in recipes:
+                unique_id = f"{entry.entry_id}_{r.id}"
+                expected = f"sensor.recipe_{slugify.slugify(r.title)}"
+                current = registry.async_get_entity_id("sensor", DOMAIN, unique_id)
+                if current and current != expected and not registry.async_get(expected):
+                    registry.async_update_entity(current, new_entity_id=expected)
+        except Exception:
+            pass
+
+    hass.async_create_task(_migrate_entity_ids())
 
     # Serve and auto-load the bundled Lovelace card (no build step required)
     try:
