@@ -12,7 +12,7 @@ interface RecipeCardsConfig {
   // Grouping behavior
   group_by?: 'entry' | 'none';
   title?: string;
-  view?: 'collection' | 'detail';
+  view?: 'collection' | 'detail' | 'tray';
 }
 
 interface Recipe {
@@ -50,6 +50,7 @@ export class RecipeCardsCard extends LitElement {
   private saving = false;
   private errorMessage?: string;
   private selectedEntryFilter: string | 'all' = 'all';
+  private trayIndex = 0;
 
   static get properties() {
     return {
@@ -512,6 +513,44 @@ export class RecipeCardsCard extends LitElement {
       background: #e8e0c0;
     }
 
+    /* Tray view */
+    .tray-container {
+      background: #fffbe6;
+      border: 2px solid #bfa14a;
+      border-radius: var(--card-radius);
+      padding: 0.8em;
+    }
+    .tray-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.5em;
+    }
+    .tray-title { font-size: 1.2em; font-weight: bold; color: #bfa14a; }
+    .tray { display: flex; gap: 10px; overflow-x: auto; padding: .2em 0 .6em; }
+    .tray-card {
+      min-width: 140px;
+      height: 100px;
+      border: 2px solid #bfa14a;
+      border-radius: 10px;
+      background: #fffdf0;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.12);
+      cursor: pointer;
+      transition: transform .15s ease, box-shadow .15s ease;
+      position: relative;
+      padding: 0.3em;
+    }
+    .tray-card:focus { outline: 2px solid #bfa14a; }
+    .tray-card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.18); }
+    .tray-card-header { position: absolute; top: 0; left: 0; right: 0; height: 18px; border-radius: 8px 8px 0 0; }
+    .tray-card-title { font-size: .9em; color: #7c6f3a; padding-top: .4em; }
+    .tray-actions { display: flex; gap: .4em; position: absolute; bottom: .4em; right: .4em; }
+    .tray-action { border: 1px solid #bfa14a; background: #f5f0d6; color: #7c6f3a; border-radius: 4px; font-size: .75em; padding: .2em .5em; }
+    .tray-detail { margin-top: 0.8em; }
+
     @media (max-width: 400px) {
       :host {
         --card-width: 98vw;
@@ -585,20 +624,27 @@ export class RecipeCardsCard extends LitElement {
         }
         this.loading = false;
         this.error = undefined;
-      } catch (err) {
-        console.error(err);
-        // Fallback to legacy entity if provided
-        try {
-          if (this.config?.entity) {
-            const entityState = this.hass.states[this.config.entity];
-            const newRecipes = entityState?.attributes?.recipes || [];
-            this.recipes = newRecipes;
-            this.recipe = this.recipes[0];
-            this.loading = false;
-            this.error = undefined;
-            return;
-          }
-        } catch (_) {}
+        } catch (err) {
+          console.error(err);
+          // Fallback to legacy entity if provided
+          try {
+            if (this.config?.entity) {
+              const entityState = this.hass.states[this.config.entity];
+              if (entityState?.attributes?.id) {
+                // Per-recipe sensor: attributes hold the recipe fields
+                const one = entityState.attributes as any;
+                this.recipes = [one];
+                this.recipe = one;
+              } else {
+                const newRecipes = entityState?.attributes?.recipes || [];
+                this.recipes = newRecipes;
+                this.recipe = this.recipes[0];
+              }
+              this.loading = false;
+              this.error = undefined;
+              return;
+            }
+          } catch (_) {}
         this.loading = false;
         this.error = 'Failed to load recipes';
       }
@@ -742,6 +788,73 @@ export class RecipeCardsCard extends LitElement {
 
   private backToCollection() {
     this.currentView = 'collection';
+  }
+
+  private renderDetailCardOnly() {
+    if (!this.recipe) return html``;
+    return html`
+      <div class="card-container">
+        <div class="card ${this.flipped ? 'flipped' : ''}" @click=${this.flipCard} title="Flip card">
+          <div class="face front">
+            <div>
+              <div class="title">${this.recipe?.title}</div>
+              <div class="desc">${this.recipe?.description}</div>
+              <div class="section">
+                <div class="section-title">Ingredients</div>
+                <ul>
+                  ${this.recipe?.ingredients.map(ing => html`<li>${ing}</li>`)}
+                </ul>
+              </div>
+              <div class="section">
+                <div class="section-title">Notes</div>
+                <div class="notes">${this.recipe?.notes}</div>
+              </div>
+            </div>
+            <button class="flip-btn" @click=${this.flipCard} title="Show instructions">Flip for Instructions</button>
+          </div>
+          <div class="face back">
+            <div>
+              <div class="section-title">Instructions</div>
+              <ol>
+                ${this.recipe?.instructions.map(step => html`<li>${step}</li>`)}
+              </ol>
+            </div>
+            <button class="flip-btn" @click=${this.flipCard} title="Back to recipe">Back</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  private renderTrayView() {
+    const items = this.recipes || [];
+    return html`
+      <div class="tray-container" @keydown=${(e: KeyboardEvent) => {
+        if (!items.length) return;
+        if (e.key === 'ArrowRight') { this.trayIndex = Math.min(this.trayIndex + 1, items.length - 1); this.recipe = items[this.trayIndex]; this.requestUpdate(); }
+        if (e.key === 'ArrowLeft') { this.trayIndex = Math.max(this.trayIndex - 1, 0); this.recipe = items[this.trayIndex]; this.requestUpdate(); }
+      }}>
+        <div class="tray-header">
+          <div class="tray-title">${this.config?.title || 'Recipe Cards'}</div>
+          <button class="add-recipe-btn" @click=${this.openAddModal} title="Add Recipe">+</button>
+        </div>
+        <div class="tray">
+          ${items.map((r, idx) => html`
+            <div class="tray-card" tabindex="0" @click=${() => { this.trayIndex = idx; this.recipe = r; }}>
+              <div class="tray-card-header" style="background:${(r as any).color || '#bfa14a'}"></div>
+              <div class="tray-card-title">${this.sanitizeText(r.title)}</div>
+              <div class="tray-actions">
+                <button class="tray-action" @click=${(e: Event) => { e.stopPropagation(); this.openEditModal(r); }}>Edit</button>
+                <button class="tray-action" @click=${(e: Event) => this.deleteRecipe(r.id, e)}>Del</button>
+              </div>
+            </div>
+          `)}
+        </div>
+        <div class="tray-detail">
+          ${this.recipe ? this.renderDetailCardOnly() : html`<div class="no-recipes">Select a card to view the recipe</div>`}
+        </div>
+      </div>
+    `;
   }
 
   private sanitizeText(text: string): string {
@@ -980,7 +1093,7 @@ export class RecipeCardsCard extends LitElement {
     }
 
     return html`
-      ${this.currentView === 'collection' ? this.renderCollectionView() : this.renderDetailView()}
+      ${this.currentView === 'tray' ? this.renderTrayView() : this.currentView === 'collection' ? this.renderCollectionView() : this.renderDetailView()}
       ${this.showAddModal ? this.renderRecipeModal() : ''}
       ${this.showEditModal ? this.renderRecipeModal(this.editingRecipe) : ''}
     `;

@@ -57,7 +57,12 @@
         try {
           if (cfg.entity) {
             const st = this._hass.states[cfg.entity];
-            this._recipes = (st && st.attributes && st.attributes.recipes) || [];
+            if (st && st.attributes && st.attributes.id) {
+              this._recipes = [st.attributes];
+              this._selected = st.attributes.id;
+            } else {
+              this._recipes = (st && st.attributes && st.attributes.recipes) || [];
+            }
           } else {
             throw e;
           }
@@ -122,6 +127,48 @@
       }
 
       const entryIds = Array.from(new Set((recipes||[]).map(r=>r._entry_id).filter(Boolean)));
+      if (this._view === 'tray') {
+        const tray = recipes.map(r=>`
+          <div class="rc-tile rc-tray" data-id="${this._escape(r.id)}" style="min-width:140px;height:100px;position:relative;display:flex;flex-direction:column;justify-content:flex-end;">
+            <div style="position:absolute;top:0;left:0;right:0;height:14px;border-radius:6px 6px 0 0;background:${r.color||'#bfa14a'}"></div>
+            <div class="rc-t" style="margin-top:16px">${this._escape(r.title)}</div>
+            <div class="rc-actions" style="position:absolute;right:6px;bottom:6px;gap:4px;">
+              <button class="rc-btn rc-edit">Edit</button>
+              <button class="rc-btn rc-del">Del</button>
+            </div>
+          </div>
+        `).join('');
+        const detail = (()=>{
+          const r = recipes.find(x=>x.id===this._selected);
+          if (!r) return '<ha-alert>Select a card to view</ha-alert>';
+          return `
+            <div class="rc-detail">
+              <h3>${this._escape(r.title)}</h3>
+              ${r.description ? `<div>${this._escape(r.description)}</div>` : ''}
+              ${r.ingredients?.length ? `<div><b>Ingredients</b><ul>${r.ingredients.map(i=>`<li>${this._escape(i)}</li>`).join('')}</ul></div>` : ''}
+              ${r.instructions?.length ? `<div><b>Instructions</b><ol>${r.instructions.map(i=>`<li>${this._escape(i)}</li>`).join('')}</ol></div>` : ''}
+              ${r.notes ? `<div><b>Notes</b><div>${this._escape(r.notes)}</div></div>` : ''}
+            </div>`;
+        })();
+
+        this.innerHTML = `${style}
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <div style="font-weight:bold;">${this._title}</div>
+            <mwc-button raised class="rc-add">Add</mwc-button>
+          </div>
+          <div style="display:flex;gap:10px;overflow:auto;padding:4px 0;">${tray}</div>
+          ${detail}
+        `;
+
+        this.querySelector('.rc-add')?.addEventListener('click', ()=> this._openAdd());
+        this.querySelectorAll('.rc-tray').forEach(tile => {
+          const id = tile.getAttribute('data-id');
+          tile.addEventListener('click', ()=>{ this._selected = id; this._render(); });
+          tile.querySelector('.rc-edit')?.addEventListener('click', (e)=>{ e.stopPropagation(); const r=recipes.find(x=>x.id===id); if(r) this._openEdit(r); });
+          tile.querySelector('.rc-del')?.addEventListener('click', (e)=>{ e.stopPropagation(); const r=recipes.find(x=>x.id===id); if(r) this._delete(r); });
+        });
+        return;
+      }
       const filterHtml = (entryIds.length > 1 || (this._config.entry_id && !entryIds.includes(this._config.entry_id))) ? `
         <select class="rc-filter">
           <option value="all" ${this._entryFilter==='all'?'selected':''}>All sets</option>
