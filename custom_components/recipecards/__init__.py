@@ -109,11 +109,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             except Exception:  # noqa: BLE001 - path might already be registered
                 pass
 
-            # Load for all frontends (best-effort) and also register as Lovelace resource
-            try:
-                frontend.add_extra_js_url(hass, versioned_url)
-            except Exception:  # noqa: BLE001
-                pass
+            # Do not proactively load the '/recipecards' URL to avoid 404s in some setups.
+            # We rely on the '/local' fallback resource for loading in the UI.
 
             # Fallback: also copy to /config/www and register under /local
             try:
@@ -140,56 +137,42 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             except Exception:  # noqa: BLE001
                 pass
 
-            # Also register as a Lovelace resource so the card shows up in the editor
-            # and survives cached page loads. This mirrors what HACS does for plugins.
+            # Register only the '/local' resource in the Lovelace registry to avoid 404s.
             try:
                 from homeassistant.components.lovelace.resources import async_get_registry
 
-                async def _ensure_lovelace_resource() -> None:
+                async def _ensure_lovelace_resource_local_only() -> None:
                     registry = await async_get_registry(hass)
-                    # registry.async_items() returns ResourceEntry objects
-                    existing = None
-                    for item in registry.async_items():
-                        url = getattr(item, "url", None) if not isinstance(item, dict) else item.get("url")
-                        if not url:
-                            continue
-                        # Match either bare or versioned url for upgrades
-                        if url.split("?")[0] == url_base:
-                            existing = item
-                            break
-                    if existing:
-                        # Try to update URL to include the current version (cache-bust)
-                        try:
-                            await registry.async_update_item(getattr(existing, "id", existing["id"]), {  # type: ignore[index]
-                                "url": versioned_url,
-                            })
-                        except Exception:  # noqa: BLE001 - API differences across cores
-                            # If update not available, create alongside; frontend will de-dupe
-                            await registry.async_create_item({"res_type": "js", "url": versioned_url})
-                    else:
-                        await registry.async_create_item({
-                            "res_type": "js",
-                            "url": versioned_url,
-                        })
-
-                    # Ensure /local fallback is also present
+                    local_url_base = "/local/recipecards-card.js"
+                    local_versioned = f"{local_url_base}?v={version}" if version else local_url_base
+                    # Remove any stale '/recipecards' resources if present to prevent 404s
                     try:
-                        local_url_base = "/local/recipecards-card.js"
-                        local_versioned = f"{local_url_base}?v={version}" if version else local_url_base
-                        has_local = False
-                        for item in registry.async_items():
+                        for item in list(registry.async_items()):
                             url = getattr(item, "url", None) if not isinstance(item, dict) else item.get("url")
-                            if url and url.split("?")[0] == local_url_base:
-                                has_local = True
-                                break
-                        if not has_local:
-                            await registry.async_create_item({"res_type": "js", "url": local_versioned})
-                    except Exception:  # noqa: BLE001
+                            if url and url.split("?")[0] == url_base:
+                                try:
+                                    await registry.async_delete_item(getattr(item, "id", item["id"]))  # type: ignore[index]
+                                except Exception:
+                                    pass
+                    except Exception:
                         pass
 
-                # Fire and forget; we don't want setup to fail on older cores
-                hass.async_create_task(_ensure_lovelace_resource())
-            except Exception:  # noqa: BLE001 - best-effort; older cores may lack API
+                    # Ensure the '/local' resource exists (or create it)
+                    for item in registry.async_items():
+                        url = getattr(item, "url", None) if not isinstance(item, dict) else item.get("url")
+                        if url and url.split("?")[0] == local_url_base:
+                            try:
+                                await registry.async_update_item(getattr(item, "id", item["id"]), {  # type: ignore[index]
+                                    "url": local_versioned,
+                                })
+                            except Exception:
+                                pass
+                            break
+                    else:
+                        await registry.async_create_item({"res_type": "js", "url": local_versioned})
+
+                hass.async_create_task(_ensure_lovelace_resource_local_only())
+            except Exception:  # noqa: BLE001
                 pass
     except Exception:  # noqa: BLE001 - best-effort frontend helper
         # Card auto-loading is best-effort; backend still functions without it
