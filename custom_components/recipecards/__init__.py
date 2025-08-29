@@ -97,9 +97,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 version = None
             versioned_url = f"{url_base}?v={version}" if version else url_base
 
-            # Serve static file
+            # Serve static file at a fixed URL
             try:
                 hass.http.register_static_path(url_base, str(card_path))
+            except Exception:  # noqa: BLE001 - path might already be registered
+                pass
+
+            # Also expose the containing directory so '/recipecards/recipecards-card.js' resolves
+            try:
+                hass.http.register_static_path("/recipecards", str(card_path.parent))
             except Exception:  # noqa: BLE001 - path might already be registered
                 pass
 
