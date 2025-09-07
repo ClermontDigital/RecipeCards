@@ -15,6 +15,7 @@ RECIPE_GET_TYPE = "recipecards/recipe_get"
 RECIPE_ADD_TYPE = "recipecards/recipe_add"
 RECIPE_UPDATE_TYPE = "recipecards/recipe_update"
 RECIPE_DELETE_TYPE = "recipecards/recipe_delete"
+RECIPE_SEARCH_TYPE = "recipecards/recipe_search"
 
 
 async def _update_coordinator(hass: HomeAssistant) -> None:
@@ -172,6 +173,51 @@ async def async_delete_recipe(hass: HomeAssistant, connection: websocket_api.Act
             return
     connection.send_error(msg["id"], "not_found", "Recipe not found")
 
+@websocket_api.websocket_command({
+    vol.Required("type"): RECIPE_SEARCH_TYPE,
+    vol.Optional("query", default=""): str,
+    vol.Optional("max_time", default=None): vol.All(vol.Coerce(int), vol.Range(min=0, max=1440)),
+})
+async def async_search_recipes(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """Search recipes by query and optional max total time."""
+    if DOMAIN not in hass.data or not hass.data[DOMAIN]:
+        connection.send_result(msg["id"], [])
+        return
+    
+    query = msg.get("query", "").lower()
+    max_time = msg.get("max_time")
+    
+    storages = _all_storages(hass)
+    if not storages:
+        connection.send_result(msg["id"], [])
+        return
+    
+    combined = []
+    for entry_id, storage in storages:
+        entry_title = None
+        try:
+            ce = hass.config_entries.async_get_entry(entry_id)
+            entry_title = getattr(ce, "title", None)
+        except Exception:  # noqa: BLE001
+            entry_title = None
+        recipes = await storage.async_load_recipes()
+        for r in recipes:
+            data = r.to_dict()
+            data["_entry_id"] = entry_id
+            if entry_title:
+                data["_entry_title"] = entry_title
+            
+            # Filter by query
+            if query and query not in data["title"].lower() and query not in (data.get("description", "") or "").lower():
+                continue
+            
+            # Filter by max_time
+            if max_time is not None and data.get("total_time", 0) > max_time:
+                continue
+            
+            combined.append(data)
+    connection.send_result(msg["id"], combined)
+
 def register_api(hass: HomeAssistant) -> None:
     """Register the WebSocket API commands."""
     _LOGGER.info("Registering Recipe Cards WebSocket API")
@@ -180,3 +226,4 @@ def register_api(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, async_add_recipe)
     websocket_api.async_register_command(hass, async_update_recipe)
     websocket_api.async_register_command(hass, async_delete_recipe)
+    websocket_api.async_register_command(hass, async_search_recipes)

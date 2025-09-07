@@ -89,7 +89,8 @@ class RecipeCardsCollectionSensor(CoordinatorEntity, SensorEntity):
             return {"recipes": []}
         
         return {
-            "recipes": [recipe.to_dict() for recipe in self.coordinator.data]
+            "recipes": [recipe.to_dict() for recipe in self.coordinator.data],
+            "avg_prep_time": sum(r.prep_time or 0 for r in self.coordinator.data) / len(self.coordinator.data) if self.coordinator.data else 0,
         }
 
 
@@ -154,4 +155,13 @@ class RecipeSensor(CoordinatorEntity, SensorEntity):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         recipe = self._find()
-        return recipe.to_dict() if recipe else {}
+        if recipe:
+            data = recipe.to_dict()
+            data.update({
+                "image": recipe.image,
+                "prep_time": recipe.prep_time,
+                "cook_time": recipe.cook_time,
+                "total_time": recipe.total_time,
+            })
+            return data
+        return {}
