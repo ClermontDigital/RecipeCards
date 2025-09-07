@@ -2,6 +2,7 @@
 import logging
 import voluptuous as vol
 import uuid
+from typing import Optional
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_registry as er
@@ -61,6 +62,20 @@ def validate_text_length(max_length: int):
         return str(value)
     return validator
 
+def validate_image(value) -> Optional[str]:
+    """Validate image as base64 string or URL."""
+    if not value:
+        return None
+    if isinstance(value, str):
+        # Basic base64 check or URL
+        if value.startswith('data:image/') or (value.startswith('http') and value.endswith(('.png', '.jpg', '.jpeg', '.gif'))):
+            # Limit size for validation (optional, but prevents huge payloads)
+            if len(value) > 1000000:  # ~1MB rough check
+                raise vol.Invalid("Image too large (max 1MB)")
+            return value
+    raise vol.Invalid("Invalid image format (base64 or URL expected)")
+    return value
+
 ADD_RECIPE_SCHEMA = vol.Schema({
     vol.Optional(ATTR_CONFIG_ENTRY_ID): cv.string,  # Made optional for auto-detection
     vol.Required(ATTR_TITLE): vol.All(cv.string, vol.Length(min=1, max=100)),
@@ -69,6 +84,10 @@ ADD_RECIPE_SCHEMA = vol.Schema({
     vol.Optional(ATTR_NOTES, default=""): vol.All(cv.string, vol.Length(max=1000)),
     vol.Optional(ATTR_INSTRUCTIONS, default=[]): vol.All(cv.ensure_list, [vol.All(cv.string, vol.Length(max=500))]),
     vol.Optional(ATTR_COLOR, default="#FFD700"): validate_color,
+    vol.Optional("image", default=None): validate_image,
+    vol.Optional("prep_time", default=None): vol.All(vol.Coerce(int), vol.Range(min=0, max=1440)),  # Up to 24 hours
+    vol.Optional("cook_time", default=None): vol.All(vol.Coerce(int), vol.Range(min=0, max=1440)),
+    vol.Optional("total_time", default=None): vol.All(vol.Coerce(int), vol.Range(min=0, max=1440)),
 })
 
 UPDATE_RECIPE_SCHEMA = vol.Schema({
@@ -80,6 +99,10 @@ UPDATE_RECIPE_SCHEMA = vol.Schema({
     vol.Optional(ATTR_NOTES): vol.All(cv.string, vol.Length(max=1000)),
     vol.Optional(ATTR_INSTRUCTIONS): vol.All(cv.ensure_list, [vol.All(cv.string, vol.Length(max=500))]),
     vol.Optional(ATTR_COLOR): validate_color,
+    vol.Optional("image", default=None): validate_image,
+    vol.Optional("prep_time", default=None): vol.All(vol.Coerce(int), vol.Range(min=0, max=1440)),
+    vol.Optional("cook_time", default=None): vol.All(vol.Coerce(int), vol.Range(min=0, max=1440)),
+    vol.Optional("total_time", default=None): vol.All(vol.Coerce(int), vol.Range(min=0, max=1440)),
 })
 
 DELETE_RECIPE_SCHEMA = vol.Schema({
@@ -87,7 +110,7 @@ DELETE_RECIPE_SCHEMA = vol.Schema({
     vol.Required(ATTR_RECIPE_ID): cv.string,
 })
 
-def _get_storage_and_coordinator(hass: HomeAssistant, config_entry_id: str = None):
+def _get_storage_and_coordinator(hass: HomeAssistant, config_entry_id: Optional[str] = None):
     """Get the storage and coordinator for a specific config entry or auto-detect.
 
     Returns a tuple (storage, coordinator, entry_id) where entry_id is the
@@ -159,7 +182,11 @@ async def async_add_recipe(call: ServiceCall) -> None:
         ingredients=call.data.get(ATTR_INGREDIENTS, []),
         notes=call.data.get(ATTR_NOTES, ""),
         instructions=instructions,
-        color=call.data.get(ATTR_COLOR, "#FFD700")
+        color=call.data.get(ATTR_COLOR, "#FFD700"),
+        image=call.data.get("image"),
+        prep_time=call.data.get("prep_time"),
+        cook_time=call.data.get("cook_time"),
+        total_time=call.data.get("total_time"),
     )
     
     await storage.async_add_recipe(recipe)

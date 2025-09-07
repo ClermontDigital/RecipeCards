@@ -31,6 +31,20 @@ def _validate_color(value) -> str:
         return value
     return "#FFD700"
 
+def _validate_image(value) -> Optional[str]:
+    """Local image validator."""
+    if not value:
+        return None
+    if isinstance(value, str):
+        import re
+        # Basic base64 or URL check
+        if value.startswith('data:image/') or re.match(r'^https?://.*\.(png|jpg|jpeg|gif)$', value):
+            if len(value) > 1000000:  # ~1MB
+                raise vol.Invalid("Image too large (max 1MB)")
+            return value
+    raise vol.Invalid("Invalid image format (base64 or URL expected)")
+    return value
+
 
 class RecipeCardsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Recipe Cards."""

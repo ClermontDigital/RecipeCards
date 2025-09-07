@@ -1,19 +1,12 @@
-import { LitElement, html, css } from 'lit';
-import { customElement } from 'lit/decorators.js';
-
-interface RecipeCardsConfig {
-  type: string;
-  // Legacy entity support retained for backward compatibility
-  entity?: string;
-  // Target a specific RecipeCards config entry; if omitted we aggregate all
-  entry_id?: string;
-  // Load a single recipe directly
-  recipe_id?: string;
-  // Grouping behavior
-  group_by?: 'entry' | 'none';
-  title?: string;
-  view?: 'collection' | 'detail' | 'tray';
-}
+import { LitElement, html, css, TemplateResult } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
+import { HomeAssistant, fireEvent } from 'home-assistant-js-websocket';
+import { haStyle } from '@material/ha-styles/base';
+import { haCardStyle } from '@material/ha-styles/card';
+import { haDialogStyle } from '@material/ha-styles/dialog';
+import { haTabsStyle } from '@material/ha-styles/tabs';
+import { HaButtonMenu, HaIconButton, HaTabs, HaCircularProgress, HaAlert, HaSelect, HaChip, HaTextfield, HaTextarea, HaButton, HaIconButtonRow } from '@material/mwc-components';
+import { isComponentLoaded } from '@material/mwc-ripple';
 
 interface Recipe {
   id: string;
@@ -23,1086 +16,441 @@ interface Recipe {
   notes: string;
   instructions: string[];
   color: string;
+  image?: string;
+  prep_time?: number;
+  cook_time?: number;
+  total_time?: number;
+  _entry_id?: string;
+  _entry_title?: string;
 }
 
-declare global {
-  interface Window {
-    customCards: Array<any>;
-    hass: any;
-  }
+interface RecipeCardsConfig {
+  type: string;
+  entity?: string;
+  entry_id?: string;
+  recipe_id?: string;
+  group_by?: 'entry' | 'none';
+  title?: string;
+  view?: 'collection' | 'detail' | 'tray';
 }
 
 @customElement('recipecards-card')
 export class RecipeCardsCard extends LitElement {
-  public hass!: any;
-  public config?: RecipeCardsConfig;
-  
-  private flipped = false;
-  private recipe?: Recipe;
-  private recipes: Recipe[] = [];
-  private loading = true;
-  private error?: string;
-  private currentView: 'collection' | 'detail' = 'collection';
-  private showAddModal = false;
-  private showEditModal = false;
-  private editingRecipe?: Recipe;
-  private selectedColor = '#FFD700';
-  private saving = false;
-  private errorMessage?: string;
-  private selectedEntryFilter: string | 'all' = 'all';
-  private trayIndex = 0;
+  @property({ attribute: false }) public hass!: HomeAssistant;
+  @property({ attribute: false }) public config?: RecipeCardsConfig;
 
-  static get properties() {
-    return {
-      hass: { attribute: false },
-      config: { attribute: false },
-      flipped: { state: true },
-      recipe: { state: true },
-      recipes: { state: true },
-      loading: { state: true },
-      error: { state: true },
-      currentView: { state: true },
-      showAddModal: { state: true },
-      showEditModal: { state: true },
-      editingRecipe: { state: true },
-      selectedColor: { state: true },
-      saving: { state: true },
-      errorMessage: { state: true },
-      selectedEntryFilter: { state: true }
-    };
-  }
+  @state() private recipes: Recipe[] = [];
+  @state() private currentView: 'collection' | 'detail' | 'tray' = 'collection';
+  @state() private selectedRecipe?: Recipe;
+  @state() private loading = true;
+  @state() private error?: string;
+  @state() private searchQuery = '';
+  @state() private selectedEntry = 'all';
+  @state() private showAddDialog = false;
+  @state() private showEditDialog = false;
+  @state() private editingRecipe?: Recipe;
+  @state() private saving = false;
+  @state() private saveError?: string;
+  @state() private trayIndex = 0;
 
   static styles = css`
+    ${haStyle}
+    ${haCardStyle}
+    ${haDialogStyle}
+    ${haTabsStyle}
     :host {
-      display: block;
-      font-family: 'Georgia', serif;
-      background: none;
-      --card-width: 350px;
-      --card-height: 260px;
-      --card-radius: 16px;
-      --card-shadow: 0 4px 16px rgba(0,0,0,0.10);
-      --card-bg: #fffbe6;
-      --card-border: 2px solid #bfa14a;
-    }
-    .container {
-      width: var(--card-width);
-      margin: 2em auto;
-    }
-    .tab-bar {
-      display: flex;
-      background: #f5f0d6;
-      border: 2px solid #bfa14a;
-      border-bottom: none;
-      border-radius: 12px 12px 0 0;
-      overflow-x: auto;
-      scrollbar-width: thin;
-      scrollbar-color: #bfa14a #f5f0d6;
-    }
-    .tab-bar::-webkit-scrollbar {
-      height: 6px;
-    }
-    .tab-bar::-webkit-scrollbar-track {
-      background: #f5f0d6;
-    }
-    .tab-bar::-webkit-scrollbar-thumb {
-      background: #bfa14a;
-      border-radius: 3px;
-    }
-    .tab {
-      padding: 0.8em 1.2em;
-      background: #f5f0d6;
-      border: none;
-      border-right: 1px solid #bfa14a;
-      color: #7c6f3a;
-      font-family: inherit;
-      font-size: 0.9em;
-      cursor: pointer;
-      white-space: nowrap;
-      transition: background 0.2s;
-      min-width: 80px;
-      text-align: center;
-    }
-    .tab:last-child {
-      border-right: none;
-    }
-    .tab:hover {
-      background: #e8e0c0;
-    }
-    .tab.active {
-      background: #fffbe6;
-      color: #bfa14a;
-      font-weight: bold;
+      --ha-card-border-radius: var(--ha-card-border-radius, 8px);
+      --primary-color: var(--mdc-theme-primary, #03a9f4);
+      --card-background-color: var(--mdc-theme-surface, #fff);
+      --divider-color: var(--mdc-theme-divider-color, rgba(0,0,0,0.12));
+      --primary-text-color: var(--mdc-theme-on-surface, #000);
     }
     .card-container {
-      width: 100%;
-      height: var(--card-height);
-      perspective: 1200px;
+      display: block;
+      padding: 16px;
     }
-    .card {
-      width: 100%;
-      height: 100%;
-      border-radius: 0 0 var(--card-radius) var(--card-radius);
-      box-shadow: var(--card-shadow);
-      background: var(--card-bg);
-      border: var(--card-border);
-      border-top: none;
-      position: relative;
-      transition: transform 0.7s cubic-bezier(.4,2,.6,1), box-shadow 0.2s;
-      transform-style: preserve-3d;
-      cursor: pointer;
-      user-select: none;
-      overflow: hidden;
-      will-change: transform;
-    }
-    .card.flipped {
-      transform: rotateY(180deg);
-    }
-    .face {
-      position: absolute;
-      width: 100%;
-      height: 100%;
-      backface-visibility: hidden;
+    .header {
       display: flex;
-      flex-direction: column;
+      align-items: center;
       justify-content: space-between;
-      padding: 1.5em 1.2em 1.2em 1.2em;
+      margin-bottom: 16px;
     }
-    .front {
-      z-index: 2;
-    }
-    .back {
-      transform: rotateY(180deg);
-      background: #fffbe6;
-    }
-    .title {
-      font-size: 1.5em;
-      font-weight: bold;
-      color: #bfa14a;
-      margin-bottom: 0.3em;
-      letter-spacing: 0.02em;
-    }
-    .desc {
-      font-size: 1em;
-      color: #7c6f3a;
-      margin-bottom: 0.8em;
-    }
-    .section {
-      margin-bottom: 0.7em;
-    }
-    .section-title {
-      font-size: 1em;
-      font-weight: bold;
-      color: #a68c3a;
-      margin-bottom: 0.2em;
-      letter-spacing: 0.01em;
-    }
-    ul, ol {
-      margin: 0 0 0 1.2em;
-      padding: 0;
-      font-size: 0.98em;
-      color: #5a4d1a;
-    }
-    .notes {
-      font-size: 0.95em;
-      color: #8c7a3a;
-      font-style: italic;
-      margin-top: 0.5em;
-    }
-    .flip-btn {
-      align-self: flex-end;
-      background: #bfa14a;
-      color: #fffbe6;
-      border: none;
-      border-radius: 8px;
-      padding: 0.4em 1.1em;
-      font-size: 1em;
-      font-family: inherit;
-      cursor: pointer;
-      margin-top: 1em;
-      transition: background 0.2s;
-    }
-    .flip-btn:hover {
-      background: #a68c3a;
-    }
-    .loading, .error {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 100%;
-      color: #bfa14a;
-      font-size: 1.2em;
-    }
-    .error {
-      color: #d32f2f;
-      text-align: center;
-      padding: 1em;
-    }
-    .no-recipes {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 100%;
-      color: #7c6f3a;
-      font-size: 1.1em;
-      text-align: center;
-      padding: 1em;
-    }
-    /* Collection View Styles */
-    .collection-container {
-      padding: 1em;
-      background: #fffbe6;
-      border: 2px solid #bfa14a;
-      border-radius: var(--card-radius);
-      min-height: 300px;
-    }
-    .collection-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 1em;
-      padding-bottom: 0.5em;
-      border-bottom: 1px solid #bfa14a;
-    }
-    .collection-title {
-      font-size: 1.4em;
-      font-weight: bold;
-      color: #bfa14a;
-    }
-    .add-recipe-btn {
-      background: #bfa14a;
-      color: #fffbe6;
-      border: none;
-      border-radius: 50%;
-      width: 40px;
-      height: 40px;
-      font-size: 1.5em;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: background 0.2s;
-    }
-    .add-recipe-btn:hover {
-      background: #a68c3a;
+    .search-field {
+      flex: 1;
+      max-width: 300px;
     }
     .recipes-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-      gap: 1em;
-      margin-top: 1em;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 16px;
     }
     .recipe-tile {
-      background: #fffbe6;
-      border: 2px solid #bfa14a;
-      border-radius: 12px;
-      padding: 1em;
       cursor: pointer;
-      transition: transform 0.2s, box-shadow 0.2s;
-      position: relative;
-      min-height: 120px;
+      transition: transform 0.2s;
+    }
+    .recipe-tile:hover {
+      transform: translateY(-2px);
+    }
+    .recipe-header {
+      background-color: var(--primary-color);
+      color: white;
+      padding: 12px;
+      border-radius: var(--ha-card-border-radius) var(--ha-card-border-radius) 0 0;
+    }
+    .recipe-info {
+      display: flex;
+      gap: 8px;
+      margin: 8px 0;
+      flex-wrap: wrap;
+    }
+    .detail-tabs {
+      margin-bottom: 16px;
+    }
+    .tab-content {
+      padding: 16px;
+    }
+    .image {
+      max-width: 100%;
+      height: auto;
+      border-radius: 4px;
+    }
+    .tray-container {
+      display: flex;
+      overflow-x: auto;
+      gap: 8px;
+      padding: 8px 0;
+      scrollbar-width: thin;
+    }
+    .tray-item {
+      min-width: 120px;
+      cursor: pointer;
+    }
+    .modal-form {
       display: flex;
       flex-direction: column;
-      justify-content: space-between;
-    }
-    .recipe-tile:hover, .recipe-tile:focus {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(0,0,0,0.15);
-      outline: 2px solid #bfa14a;
-      outline-offset: 2px;
-    }
-    .recipe-tile-header {
-      padding: 0.5em;
-      border-radius: 8px 8px 0 0;
-      margin: -1em -1em 0.5em -1em;
-      color: white;
-      font-weight: bold;
-      position: relative;
-    }
-    .recipe-tile-title {
-      font-size: 1.1em;
-      margin-bottom: 0.2em;
-    }
-    .recipe-tile-desc {
-      font-size: 0.9em;
-      opacity: 0.9;
-    }
-    .recipe-tile-info {
-      color: #7c6f3a;
-      font-size: 0.8em;
-      margin: 0.5em 0;
-      padding: 0.3em;
-      background: rgba(191, 161, 74, 0.1);
-      border-radius: 4px;
-      text-align: center;
-    }
-    .recipe-tile-actions {
-      display: flex;
-      gap: 0.5em;
-      margin-top: 0.5em;
-    }
-    .recipe-action-btn {
-      background: none;
-      border: 1px solid #bfa14a;
-      color: #bfa14a;
-      border-radius: 4px;
-      padding: 0.3em 0.6em;
-      font-size: 0.8em;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    .recipe-action-btn:hover {
-      background: #bfa14a;
-      color: #fffbe6;
-    }
-    .recipe-action-btn.delete:hover {
-      background: #d32f2f;
-      border-color: #d32f2f;
-    }
-
-    /* Modal Styles */
-    .modal-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0,0,0,0.5);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 1000;
-    }
-    .modal {
-      background: #fffbe6;
-      border: 2px solid #bfa14a;
-      border-radius: var(--card-radius);
-      padding: 1.5em;
-      max-width: 500px;
-      width: 90vw;
-      max-height: 80vh;
-      overflow-y: auto;
-    }
-    .modal-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 1em;
-      padding-bottom: 0.5em;
-      border-bottom: 1px solid #bfa14a;
-    }
-    .modal-title {
-      font-size: 1.3em;
-      font-weight: bold;
-      color: #bfa14a;
-    }
-    .modal-close {
-      background: none;
-      border: none;
-      font-size: 1.5em;
-      color: #bfa14a;
-      cursor: pointer;
-    }
-    .form-group {
-      margin-bottom: 1em;
-    }
-    .form-label {
-      display: block;
-      margin-bottom: 0.3em;
-      font-weight: bold;
-      color: #7c6f3a;
-    }
-    .form-input, .form-textarea {
-      width: 100%;
-      padding: 0.5em;
-      border: 1px solid #bfa14a;
-      border-radius: 4px;
-      font-family: inherit;
-      font-size: 1em;
-      background: #fffbe6;
-    }
-    .form-textarea {
-      min-height: 80px;
-      resize: vertical;
+      gap: 16px;
     }
     .color-picker {
       display: flex;
-      gap: 0.5em;
+      gap: 8px;
       flex-wrap: wrap;
-      margin-top: 0.5em;
     }
-    .color-option {
-      width: 30px;
-      height: 30px;
+    .color-swatch {
+      width: 32px;
+      height: 32px;
       border-radius: 50%;
+      cursor: pointer;
       border: 2px solid transparent;
-      cursor: pointer;
-      transition: border-color 0.2s;
     }
-    .color-option.selected {
-      border-color: #333;
+    .color-swatch.selected {
+      border-color: var(--primary-color);
     }
-    .modal-actions {
+    .time-chips {
       display: flex;
-      gap: 1em;
-      justify-content: flex-end;
-      margin-top: 1.5em;
+      gap: 8px;
+      margin: 8px 0;
     }
-    .btn {
-      padding: 0.7em 1.5em;
-      border: none;
-      border-radius: 6px;
-      font-family: inherit;
-      font-size: 1em;
-      cursor: pointer;
-      transition: background 0.2s;
-    }
-    .btn-primary {
-      background: #bfa14a;
-      color: #fffbe6;
-    }
-    .btn-primary:hover {
-      background: #a68c3a;
-    }
-    .btn-secondary {
-      background: #f5f0d6;
-      color: #7c6f3a;
-      border: 1px solid #bfa14a;
-    }
-    .btn-secondary:hover {
-      background: #e8e0c0;
-    }
-    .btn:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-    .error-message {
-      background: #fee;
-      color: #c33;
-      padding: 0.5em;
-      border-radius: 4px;
-      margin-bottom: 1em;
-      border: 1px solid #fcc;
-    }
-    .loading-spinner {
-      display: inline-block;
-      width: 16px;
-      height: 16px;
-      border: 2px solid #bfa14a;
-      border-radius: 50%;
-      border-top-color: transparent;
-      animation: spin 1s ease-in-out infinite;
-      margin-right: 0.5em;
-    }
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-
-    /* Back button for detail view */
-    .back-btn {
-      background: #f5f0d6;
-      color: #7c6f3a;
-      border: 1px solid #bfa14a;
-      border-radius: 6px;
-      padding: 0.5em 1em;
-      font-family: inherit;
-      cursor: pointer;
-      margin-bottom: 1em;
-      transition: background 0.2s;
-    }
-    .back-btn:hover {
-      background: #e8e0c0;
-    }
-
-    /* Tray view */
-    .tray-container {
-      background: #fffbe6;
-      border: 2px solid #bfa14a;
-      border-radius: var(--card-radius);
-      padding: 0.8em;
-    }
-    .tray-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 0.5em;
-    }
-    .tray-title { font-size: 1.2em; font-weight: bold; color: #bfa14a; }
-    .tray { display: flex; gap: 10px; overflow-x: auto; padding: .2em 0 .6em; }
-    .tray-card {
-      min-width: 140px;
-      height: 100px;
-      border: 2px solid #bfa14a;
-      border-radius: 10px;
-      background: #fffdf0;
-      display: flex;
-      flex-direction: column;
-      justify-content: flex-end;
-      box-shadow: 0 3px 10px rgba(0,0,0,0.12);
-      cursor: pointer;
-      transition: transform .15s ease, box-shadow .15s ease;
-      position: relative;
-      padding: 0.3em;
-    }
-    .tray-card:focus { outline: 2px solid #bfa14a; }
-    .tray-card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.18); }
-    .tray-card-header { position: absolute; top: 0; left: 0; right: 0; height: 18px; border-radius: 8px 8px 0 0; }
-    .tray-card-title { font-size: .9em; color: #7c6f3a; padding-top: .4em; }
-    .tray-actions { display: flex; gap: .4em; position: absolute; bottom: .4em; right: .4em; }
-    .tray-action { border: 1px solid #bfa14a; background: #f5f0d6; color: #7c6f3a; border-radius: 4px; font-size: .75em; padding: .2em .5em; }
-    .tray-detail { margin-top: 0.8em; }
-
-    @media (max-width: 400px) {
-      :host {
-        --card-width: 98vw;
-        --card-height: 60vw;
-      }
-      .container {
-        width: var(--card-width);
-      }
-      .card-container {
-        width: 100%;
-        height: var(--card-height);
-      }
+    @media (max-width: 600px) {
       .recipes-grid {
-        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-      }
-      .modal {
-        width: 95vw;
-        padding: 1em;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
       }
     }
   `;
 
-  setConfig(config: RecipeCardsConfig) {
-    if (!config.entity && !config.entry_id && !config.recipe_id) {
-      throw new Error('You need to define an entity, entry_id, or recipe_id');
-    }
-    this.config = config;
-    this.currentView = config.view || (config.recipe_id ? 'detail' : 'collection');
+  connectedCallback() {
+    super.connectedCallback();
+    this.loadRecipes();
   }
 
-  private updateRecipes() {
-    if (!this.config || !this.hass) {
-      return;
-    }
-    // Prefer WebSocket API which aggregates across entries
-    (async () => {
-      try {
-        this.loading = true;
-        if (this.config?.recipe_id) {
-          const r = await this.hass.callWS({
-            type: 'recipecards/recipe_get',
-            recipe_id: this.config.recipe_id,
-          });
-          this.recipes = r ? [r] : [];
-          this.recipe = r || undefined;
-          this.loading = false;
-          this.error = undefined;
-          return;
-        }
-
-        const list = await this.hass.callWS({ type: 'recipecards/recipe_list' });
-        const allRecipes: Recipe[] = Array.isArray(list) ? list : [];
-        // Apply optional entry filter from config
-        const filtered = this.config?.entry_id
-          ? allRecipes.filter((r: any) => r._entry_id === this.config!.entry_id)
-          : allRecipes;
-
-        // Set default dropdown filter to configured entry when present
-        if (this.config?.entry_id) {
-          this.selectedEntryFilter = this.config.entry_id;
-        } else if (this.selectedEntryFilter === 'all') {
-          this.selectedEntryFilter = 'all';
-        }
-
-        // Only update if recipes changed
-        if (JSON.stringify(filtered) !== JSON.stringify(this.recipes)) {
-          this.recipes = filtered as any;
-          if (this.recipes.length > 0 && !this.recipe) {
-            this.recipe = this.recipes[0];
-          }
-        }
-        this.loading = false;
-        this.error = undefined;
-        } catch (err) {
-          console.error(err);
-          // Fallback to legacy entity if provided
-          try {
-            if (this.config?.entity) {
-              const entityState = this.hass.states[this.config.entity];
-              if (entityState?.attributes?.id) {
-                // Per-recipe sensor: attributes hold the recipe fields
-                const one = entityState.attributes as any;
-                this.recipes = [one];
-                this.recipe = one;
-              } else {
-                const newRecipes = entityState?.attributes?.recipes || [];
-                this.recipes = newRecipes;
-                this.recipe = this.recipes[0];
-              }
-              this.loading = false;
-              this.error = undefined;
-              return;
-            }
-          } catch (_) {}
-        this.loading = false;
-        this.error = 'Failed to load recipes';
-      }
-    })();
-  }
-
-  protected shouldUpdate(changedProps: Map<string | number | symbol, unknown>): boolean {
+  shouldUpdate(changedProps: Map<string, unknown>) {
     if (changedProps.has('hass') && this.config) {
-      const oldHass = changedProps.get('hass') as any;
-      const newHass = this.hass;
-      
-      // Only update if the specific entity has changed
-      if (!oldHass || 
-          !oldHass.states[this.config.entity] || 
-          oldHass.states[this.config.entity] !== newHass.states[this.config.entity]) {
-        this.updateRecipes();
-      }
+      this.loadRecipes();
     }
     return true;
   }
 
-  private switchRecipe(recipeId: string) {
-    this.flipped = false; // Reset flip state when switching recipes
-    this.recipe = this.recipes.find(r => r.id === recipeId);
-  }
-
-  private flipCard(e: Event) {
-    e.stopPropagation();
-    this.flipped = !this.flipped;
-  }
-
-  private openAddModal() {
-    this.showAddModal = true;
-    this.selectedColor = '#FFD700'; // Reset color picker
-  }
-
-  private closeAddModal() {
-    this.showAddModal = false;
-  }
-
-  private openEditModal(recipe: Recipe) {
-    this.editingRecipe = recipe;
-    this.selectedColor = recipe.color || '#FFD700';
-    this.showEditModal = true;
-  }
-
-  private closeEditModal() {
-    this.showEditModal = false;
-    this.editingRecipe = undefined;
-  }
-
-  private async addRecipe(formData: FormData) {
-    const title = formData.get('title') as string;
-    const description = formData.get('description') as string;
-    const ingredients = (formData.get('ingredients') as string).split('\n').filter(i => i.trim());
-    const notes = formData.get('notes') as string;
-    const instructions = (formData.get('instructions') as string).split('\n').filter(i => i.trim());
-    const color = formData.get('color') as string || '#FFD700';
-
-    this.saving = true;
-    this.errorMessage = undefined;
-
+  private async loadRecipes() {
+    if (!this.hass || !this.config) return;
+    this.loading = true;
     try {
-      const payload: any = {
-        title,
-        description,
-        ingredients,
-        notes,
-        instructions,
-        color
-      };
-      const entryId = this.selectedEntryFilter !== 'all' ? this.selectedEntryFilter : this.config?.entry_id;
-      if (entryId) payload.config_entry_id = entryId;
-      await this.hass.callService('recipecards', 'add_recipe', payload);
-      this.closeAddModal();
-    } catch (error) {
-      console.error('Failed to add recipe:', error);
-      this.errorMessage = 'Failed to add recipe. Please check your input and try again.';
-      setTimeout(() => this.errorMessage = undefined, 5000);
-    } finally {
-      this.saving = false;
+      let recipes: Recipe[] = [];
+      if (this.config.recipe_id) {
+        const r = await this.hass.callWS<Recipe>({
+          type: 'recipecards/recipe_get',
+          recipe_id: this.config.recipe_id,
+        });
+        recipes = r ? [r] : [];
+      } else {
+        const list = await this.hass.callWS<Recipe[]>({ type: 'recipecards/recipe_list' });
+        recipes = list || [];
+        if (this.config.entry_id) {
+          recipes = recipes.filter(r => r._entry_id === this.config.entry_id);
+        }
+      }
+      this.recipes = recipes;
+      this.loading = false;
+    } catch (err) {
+      this.error = 'Failed to load recipes';
+      this.loading = false;
+      console.error(err);
     }
   }
 
-  private async updateRecipe(formData: FormData) {
-    if (!this.editingRecipe) return;
-
-    const title = formData.get('title') as string;
-    const description = formData.get('description') as string;
-    const ingredients = (formData.get('ingredients') as string).split('\n').filter(i => i.trim());
-    const notes = formData.get('notes') as string;
-    const instructions = (formData.get('instructions') as string).split('\n').filter(i => i.trim());
-    const color = formData.get('color') as string || '#FFD700';
-
-    this.saving = true;
-    this.errorMessage = undefined;
-
+  private async searchRecipes(query: string, maxTime?: number) {
     try {
-      const payload: any = {
-        recipe_id: this.editingRecipe.id,
-        title,
-        description,
-        ingredients,
-        notes,
-        instructions,
-        color
-      };
-      const entryId = this.selectedEntryFilter !== 'all' ? this.selectedEntryFilter : this.config?.entry_id;
-      if (entryId) payload.config_entry_id = entryId;
-      await this.hass.callService('recipecards', 'update_recipe', payload);
-      this.closeEditModal();
-    } catch (error) {
-      console.error('Failed to update recipe:', error);
-      this.errorMessage = 'Failed to update recipe. Please check your input and try again.';
-      setTimeout(() => this.errorMessage = undefined, 5000);
-    } finally {
-      this.saving = false;
+      const results = await this.hass.callWS<Recipe[]>({
+        type: 'recipecards/recipe_search',
+        query,
+        max_time: maxTime,
+      });
+      this.recipes = results;
+    } catch (err) {
+      console.error('Search failed', err);
     }
   }
 
-  private async deleteRecipe(recipeId: string, e: Event) {
-    e.stopPropagation();
-    if (!confirm('Are you sure you want to delete this recipe?')) return;
-
-    try {
-      const payload: any = { recipe_id: recipeId };
-      const entryId = this.selectedEntryFilter !== 'all' ? this.selectedEntryFilter : this.config?.entry_id;
-      if (entryId) payload.config_entry_id = entryId;
-      await this.hass.callService('recipecards', 'delete_recipe', payload);
-    } catch (error) {
-      console.error('Failed to delete recipe:', error);
-      // Could add error handling UI here
-    }
+  private handleSearch(e: Event) {
+    const target = e.target as HTMLInputElement;
+    this.searchQuery = target.value;
+    this.searchRecipes(this.searchQuery);
   }
 
   private viewRecipe(recipe: Recipe) {
-    this.recipe = recipe;
+    this.selectedRecipe = recipe;
     this.currentView = 'detail';
-    this.flipped = false;
   }
 
   private backToCollection() {
     this.currentView = 'collection';
+    this.selectedRecipe = undefined;
   }
 
-  private renderDetailCardOnly() {
-    if (!this.recipe) return html``;
-    return html`
-      <div class="card-container">
-        <div class="card ${this.flipped ? 'flipped' : ''}" @click=${this.flipCard} title="Flip card">
-          <div class="face front">
-            <div>
-              <div class="title">${this.recipe?.title}</div>
-              <div class="desc">${this.recipe?.description}</div>
-              <div class="section">
-                <div class="section-title">Ingredients</div>
-                <ul>
-                  ${this.recipe?.ingredients.map(ing => html`<li>${ing}</li>`)}
-                </ul>
-              </div>
-              <div class="section">
-                <div class="section-title">Notes</div>
-                <div class="notes">${this.recipe?.notes}</div>
-              </div>
-            </div>
-            <button class="flip-btn" @click=${this.flipCard} title="Show instructions">Flip for Instructions</button>
-          </div>
-          <div class="face back">
-            <div>
-              <div class="section-title">Instructions</div>
-              <ol>
-                ${this.recipe?.instructions.map(step => html`<li>${step}</li>`)}
-              </ol>
-            </div>
-            <button class="flip-btn" @click=${this.flipCard} title="Back to recipe">Back</button>
-          </div>
-        </div>
-      </div>
-    `;
+  private openAdd() {
+    this.editingRecipe = undefined;
+    this.showAddDialog = true;
   }
 
-  private renderTrayView() {
-    const items = this.recipes || [];
-    return html`
-      <div class="tray-container" @keydown=${(e: KeyboardEvent) => {
-        if (!items.length) return;
-        if (e.key === 'ArrowRight') { this.trayIndex = Math.min(this.trayIndex + 1, items.length - 1); this.recipe = items[this.trayIndex]; this.requestUpdate(); }
-        if (e.key === 'ArrowLeft') { this.trayIndex = Math.max(this.trayIndex - 1, 0); this.recipe = items[this.trayIndex]; this.requestUpdate(); }
-      }}>
-        <div class="tray-header">
-          <div class="tray-title">${this.config?.title || 'Recipe Cards'}</div>
-          <button class="add-recipe-btn" @click=${this.openAddModal} title="Add Recipe">+</button>
-        </div>
-        <div class="tray">
-          ${items.map((r, idx) => html`
-            <div class="tray-card" tabindex="0" @click=${() => { this.trayIndex = idx; this.recipe = r; }}>
-              <div class="tray-card-header" style="background:${(r as any).color || '#bfa14a'}"></div>
-              <div class="tray-card-title">${this.sanitizeText(r.title)}</div>
-              <div class="tray-actions">
-                <button class="tray-action" @click=${(e: Event) => { e.stopPropagation(); this.openEditModal(r); }}>Edit</button>
-                <button class="tray-action" @click=${(e: Event) => this.deleteRecipe(r.id, e)}>Del</button>
-              </div>
-            </div>
-          `)}
-        </div>
-        <div class="tray-detail">
-          ${this.recipe ? this.renderDetailCardOnly() : html`<div class="no-recipes">Select a card to view the recipe</div>`}
-        </div>
-      </div>
-    `;
+  private openEdit(recipe: Recipe) {
+    this.editingRecipe = { ...recipe };
+    this.showEditDialog = true;
   }
 
-  private sanitizeText(text: string): string {
-    // Basic XSS protection - remove potentially dangerous characters
-    return text.replace(/[<>]/g, '');
+  private closeDialog() {
+    this.showAddDialog = false;
+    this.showEditDialog = false;
+    this.editingRecipe = undefined;
+    this.saveError = undefined;
   }
 
-  private renderCollectionView() {
-    const entryIds = Array.from(new Set((this.recipes as any[]).map(r => r._entry_id).filter(Boolean)));
-    if (this.recipes.length === 0) {
-      return html`
-        <div class="collection-container">
-          <div class="collection-header">
-            <div class="collection-title">${this.config?.title || 'Recipe Collection'}</div>
-            <button class="add-recipe-btn" @click=${this.openAddModal} title="Add Recipe">+</button>
-          </div>
-          <div class="no-recipes">
-            🍳 Welcome to your Recipe Collection!<br />
-            <br />
-            Click the <strong>+</strong> button above to add your first recipe<br />
-            and start building your digital cookbook.
-          </div>
-        </div>
-      `;
+  private async saveRecipe() {
+    if (!this.hass || !this.editingRecipe && !this.showAddDialog) return;
+    this.saving = true;
+    this.saveError = undefined;
+    try {
+      const data = {
+        title: this.editingRecipe?.title || '',
+        description: this.editingRecipe?.description || '',
+        ingredients: this.editingRecipe?.ingredients || [],
+        notes: this.editingRecipe?.notes || '',
+        instructions: this.editingRecipe?.instructions || [],
+        color: this.editingRecipe?.color || '#FFD700',
+        image: this.editingRecipe?.image || '',
+        prep_time: this.editingRecipe?.prep_time,
+        cook_time: this.editingRecipe?.cook_time,
+        total_time: this.editingRecipe?.total_time,
+      };
+      if (this.editingRecipe) {
+        data['recipe_id'] = this.editingRecipe.id;
+        await this.hass.callService('recipecards', 'update_recipe', data);
+      } else {
+        await this.hass.callService('recipecards', 'add_recipe', data);
+      }
+      this.closeDialog();
+      this.loadRecipes();
+    } catch (err) {
+      this.saveError = 'Failed to save recipe';
+      console.error(err);
+    } finally {
+      this.saving = false;
     }
+  }
 
-    const groupByEntry = this.config?.group_by === 'entry' || (this.config?.group_by !== 'none' && entryIds.length > 1);
+  private deleteRecipe(recipe: Recipe) {
+    if (confirm('Delete this recipe?')) {
+      this.hass.callService('recipecards', 'delete_recipe', { recipe_id: recipe.id });
+      this.loadRecipes();
+    }
+  }
 
-    if (!groupByEntry) {
-      return html`
-        <div class="collection-container">
-          <div class="collection-header">
-            <div class="collection-title">${this.config?.title || 'Recipe Collection'}</div>
-            <button class="add-recipe-btn" @click=${this.openAddModal} title="Add Recipe">+</button>
-          </div>
+  private formatTime(minutes?: number) {
+    if (!minutes) return 'Unknown';
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return h ? `${h}h ${m}m` : `${m} min`;
+  }
+
+  private renderCollection() {
+    const filtered = this.recipes.filter(r => 
+      r.title.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
+      r.description.toLowerCase().includes(this.searchQuery.toLowerCase())
+    );
+    const entryIds = [...new Set(this.recipes.map(r => r._entry_id))];
+    return html`
+      <ha-card>
+        <div class="header">
+          <h2>${this.config?.title || 'Recipe Collection'}</h2>
+          <ha-icon-button .label="Add Recipe" @click=${this.openAdd} icon="mdi:plus"></ha-icon-button>
+        </div>
+        <ha-textfield class="search-field" label="Search recipes" .value=${this.searchQuery} @input=${this.handleSearch} iconTrailing="mdi:magnify"></ha-textfield>
+        ${filtered.length ? html`
           <div class="recipes-grid">
-            ${this.recipes.map(recipe => html`
-              <div class="recipe-tile" @click=${() => this.viewRecipe(recipe)} tabindex="0" role="button" aria-label="View recipe: ${recipe.title}">
-                <div class="recipe-tile-header" style="background-color: ${recipe.color}">
-                  <div class="recipe-tile-title">${this.sanitizeText(recipe.title)}</div>
-                  <div class="recipe-tile-desc">${this.sanitizeText(recipe.description)}</div>
+            ${filtered.map(recipe => html`
+              <ha-card class="recipe-tile" @click=${() => this.viewRecipe(recipe)}>
+                ${recipe.image ? html`<img class="image" src=${recipe.image} alt="Recipe image">` : ''}
+                <div class="recipe-header" style="background-color: ${recipe.color}">
+                  <h3>${recipe.title}</h3>
+                  <p>${recipe.description}</p>
                 </div>
-                <div class="recipe-tile-info">
-                  <small>🥘 ${recipe.ingredients.length} ingredients • 📝 ${recipe.instructions.length} steps</small>
+                <div class="time-chips">
+                  <ha-chip label="Prep: ${this.formatTime(recipe.prep_time)}"></ha-chip>
+                  <ha-chip label="Cook: ${this.formatTime(recipe.cook_time)}"></ha-chip>
+                  <ha-chip label="Total: ${this.formatTime(recipe.total_time)}"></ha-chip>
                 </div>
-                <div class="recipe-tile-actions">
-                  <button class="recipe-action-btn" @click=${(e: Event) => { e.stopPropagation(); this.openEditModal(recipe); }}>Edit</button>
-                  <button class="recipe-action-btn delete" @click=${(e: Event) => this.deleteRecipe(recipe.id, e)}>Delete</button>
-                </div>
-              </div>
+                <ha-icon-button-row slot="trailing" .label="Actions">
+                  <ha-icon-button @click=${(e: Event) => { e.stopPropagation(); this.openEdit(recipe); }} icon="mdi:pencil"></ha-icon-button>
+                  <ha-icon-button @click=${(e: Event) => { e.stopPropagation(); this.deleteRecipe(recipe); }} icon="mdi:delete"></ha-icon-button>
+                </ha-icon-button-row>
+              </ha-card>
             `)}
           </div>
-        </div>
-      `;
-    }
-
-    // Grouped by entry (section)
-    const groups: Record<string, { title: string; id: string; recipes: any[] }> = {};
-    (this.recipes as any[]).forEach((r: any) => {
-      const id = r._entry_id || 'unknown';
-      const title = r._entry_title || `Set ${String(id).slice(0, 6)}`;
-      if (!groups[id]) groups[id] = { title, id, recipes: [] };
-      groups[id].recipes.push(r);
-    });
-
-    return html`
-      ${Object.values(groups).map(group => html`
-        <div class="collection-container">
-          <div class="collection-header">
-            <div class="collection-title">${group.title}</div>
-            <button class="add-recipe-btn" @click=${() => { this.selectedEntryFilter = group.id; this.openAddModal(); }} title="Add Recipe to ${group.title}">+</button>
-          </div>
-          <div class="recipes-grid">
-            ${group.recipes.map(recipe => html`
-              <div class="recipe-tile" @click=${() => this.viewRecipe(recipe)} tabindex="0" role="button" aria-label="View recipe: ${recipe.title}">
-                <div class="recipe-tile-header" style="background-color: ${recipe.color}">
-                  <div class="recipe-tile-title">${this.sanitizeText(recipe.title)}</div>
-                  <div class="recipe-tile-desc">${this.sanitizeText(recipe.description)}</div>
-                </div>
-                <div class="recipe-tile-info">
-                  <small>🥘 ${recipe.ingredients.length} ingredients • 📝 ${recipe.instructions.length} steps</small>
-                </div>
-                <div class="recipe-tile-actions">
-                  <button class="recipe-action-btn" @click=${(e: Event) => { e.stopPropagation(); this.openEditModal(recipe); }}>Edit</button>
-                  <button class="recipe-action-btn delete" @click=${(e: Event) => this.deleteRecipe(recipe.id, e)}>Delete</button>
-                </div>
-              </div>
-            `)}
-          </div>
-        </div>
-      `)}
+        ` : html`<ha-alert alert-type="info">No recipes found. Add one to start!</ha-alert>`}
+      </ha-card>
     `;
   }
 
-  private renderDetailView() {
-    if (!this.recipe) {
-      this.currentView = 'collection';
-      return html``;
-    }
-
+  private renderDetail() {
+    if (!this.selectedRecipe) return html``;
     return html`
-      <div class="container">
-        <button class="back-btn" @click=${this.backToCollection}>← Back to Collection</button>
-        <div class="tab-bar">
-          ${this.recipes.map(recipe => html`
-            <button 
-              class="tab${this.recipe?.id === recipe.id ? ' active' : ''}"
-              @click=${() => this.switchRecipe(recipe.id)}
-              title="${recipe.title}"
-            >
-              ${recipe.title}
-            </button>
+      <ha-card>
+        <div class="header">
+          <ha-icon-button .label="Back" @click=${this.backToCollection} icon="mdi:arrow-left"></ha-icon-button>
+          <h2>${this.selectedRecipe.title}</h2>
+        </div>
+        ${this.selectedRecipe.image ? html`<img class="image" src=${this.selectedRecipe.image} alt="Recipe image">` : ''}
+        <ha-tabs slot="primary" .activeTabIndex=${0}>
+          <ha-tab label="Ingredients"></ha-tab>
+          <ha-tab label="Instructions"></ha-tab>
+          <ha-tab label="Notes"></ha-tab>
+        </ha-tabs>
+        <div class="tab-content">
+          <ul>
+            ${this.selectedRecipe.ingredients.map(ing => html`<li>${ing}</li>`)}
+          </ul>
+        </div>
+        <div class="tab-content">
+          <ol>
+            ${this.selectedRecipe.instructions.map(step => html`<li>${step}</li>`)}
+          </ol>
+        </div>
+        <div class="tab-content">
+          <p>${this.selectedRecipe.notes}</p>
+        </div>
+        <ha-icon-button-row slot="trailing" .label="Actions">
+          <ha-icon-button @click=${() => this.openEdit(this.selectedRecipe!)} icon="mdi:pencil"></ha-icon-button>
+          <ha-icon-button @click=${() => this.deleteRecipe(this.selectedRecipe!)} icon="mdi:delete"></ha-icon-button>
+        </ha-icon-button-row>
+      </ha-card>
+    `;
+  }
+
+  private renderTray() {
+    return html`
+      <ha-card>
+        <div class="header">
+          <h2>${this.config?.title || 'Recipe Tray'}</h2>
+          <ha-icon-button .label="Add" @click=${this.openAdd} icon="mdi:plus"></ha-icon-button>
+        </div>
+        <div class="tray-container">
+          ${this.recipes.map((recipe, index) => html`
+            <ha-card class="tray-item" @click=${() => { this.trayIndex = index; this.selectedRecipe = recipe; }}>
+              ${recipe.image ? html`<img class="image" src=${recipe.image} alt="Recipe image">` : ''}
+              <div class="recipe-header" style="background-color: ${recipe.color}">
+                <h3>${recipe.title}</h3>
+              </div>
+              <ha-icon-button-row>
+                <ha-icon-button @click=${(e: Event) => { e.stopPropagation(); this.openEdit(recipe); }} icon="mdi:pencil"></ha-icon-button>
+                <ha-icon-button @click=${(e: Event) => { e.stopPropagation(); this.deleteRecipe(recipe); }} icon="mdi:delete"></ha-icon-button>
+              </ha-icon-button-row>
+            </ha-card>
           `)}
         </div>
-        <div class="card-container">
-          <div class="card${this.flipped ? ' flipped' : ''}" @click=${this.flipCard}>
-            <div class="face front">
-              <div>
-                <div class="title">${this.recipe?.title}</div>
-                <div class="desc">${this.recipe?.description}</div>
-                <div class="section">
-                  <div class="section-title">Ingredients</div>
-                  <ul>
-                    ${this.recipe?.ingredients.map(ing => html`<li>${ing}</li>`)}
-                  </ul>
-                </div>
-                <div class="section">
-                  <div class="section-title">Notes</div>
-                  <div class="notes">${this.recipe?.notes}</div>
-                </div>
-              </div>
-              <button class="flip-btn" @click=${this.flipCard} title="Show instructions">Flip for Instructions</button>
-            </div>
-            <div class="face back">
-              <div>
-                <div class="section-title">Instructions</div>
-                <ol>
-                  ${this.recipe?.instructions.map(step => html`<li>${step}</li>`)}
-                </ol>
-              </div>
-              <button class="flip-btn" @click=${this.flipCard} title="Back to recipe">Back</button>
-            </div>
-          </div>
-        </div>
-      </div>
+        ${this.renderDetail()}
+      </ha-card>
     `;
   }
 
-  private renderRecipeModal(recipe?: Recipe) {
-    const isEdit = !!recipe;
-    const title = isEdit ? 'Edit Recipe' : 'Add Recipe';
-    const colorOptions = ['#FFD700', '#FF6B35', '#E91E63', '#9C27B0', '#673AB7', '#3F51B5', '#2196F3', '#03A9F4', '#00BCD4', '#009688', '#4CAF50', '#8BC34A', '#CDDC39', '#FFC107', '#FF9800', '#FF5722'];
-
+  private renderDialog() {
+    const recipe = this.editingRecipe || { title: '', description: '', ingredients: [], notes: '', instructions: [], color: '#FFD700', prep_time: undefined, cook_time: undefined, total_time: undefined };
+    const isEdit = !!this.editingRecipe;
     return html`
-      <div class="modal-overlay" @click=${(e: Event) => { if (e.target === e.currentTarget) { isEdit ? this.closeEditModal() : this.closeAddModal(); } }}>
-        <div class="modal">
-          <div class="modal-header">
-            <div class="modal-title">${title}</div>
-            <button class="modal-close" @click=${isEdit ? this.closeEditModal : this.closeAddModal}>×</button>
+      <ha-dialog open ?hideActions=${this.saving} @closed=${this.closeDialog}>
+        <ha-header>
+          <ha-icon-button slot="navigationIcon" @click=${this.closeDialog} icon="mdi:close"></ha-icon-button>
+          <h2 slot="title">${isEdit ? 'Edit' : 'Add'} Recipe</h2>
+        </ha-header>
+        <div class="modal-form">
+          <ha-textfield label="Title" .value=${recipe.title} @input=${(e: Event) => recipe.title = (e.target as HTMLInputElement).value}></ha-textfield>
+          <ha-textfield label="Description" .value=${recipe.description} @input=${(e: Event) => recipe.description = (e.target as HTMLInputElement).value}></ha-textfield>
+          <ha-textarea label="Ingredients (one per line)" .value=${recipe.ingredients.join('\n')} @input=${(e: Event) => recipe.ingredients = (e.target as HTMLInputElement).value.split('\n').map(s => s.trim()).filter(Boolean)}></ha-textarea>
+          <ha-textarea label="Instructions (one per line)" .value=${recipe.instructions.join('\n')} @input=${(e: Event) => recipe.instructions = (e.target as HTMLInputElement).value.split('\n').map(s => s.trim()).filter(Boolean)}></ha-textarea>
+          <ha-textarea label="Notes" .value=${recipe.notes} @input=${(e: Event) => recipe.notes = (e.target as HTMLInputElement).value}></ha-textarea>
+          <ha-textfield label="Image (base64 or URL)" .value=${recipe.image || ''} @input=${(e: Event) => recipe.image = (e.target as HTMLInputElement).value}></ha-textfield>
+          <ha-textfield label="Prep Time (minutes)" type="number" .value=${recipe.prep_time || ''} @input=${(e: Event) => recipe.prep_time = parseInt((e.target as HTMLInputElement).value) || undefined}></ha-textfield>
+          <ha-textfield label="Cook Time (minutes)" type="number" .value=${recipe.cook_time || ''} @input=${(e: Event) => recipe.cook_time = parseInt((e.target as HTMLInputElement).value) || undefined}></ha-textfield>
+          <ha-textfield label="Total Time (minutes)" type="number" .value=${recipe.total_time || ''} @input=${(e: Event) => recipe.total_time = parseInt((e.target as HTMLInputElement).value) || undefined}></ha-textfield>
+          <div class="color-picker">
+            <label>Color:</label>
+            ${['#FFD700', '#FF6B35', '#E91E63', '#9C27B0'].map(color => html`
+              <div class="color-swatch ${recipe.color === color ? 'selected' : ''}" style="background-color: ${color}" @click=${() => recipe.color = color}></div>
+            `)}
           </div>
-          <form @submit=${(e: Event) => {
-            e.preventDefault();
-            const formData = new FormData(e.target as HTMLFormElement);
-            isEdit ? this.updateRecipe(formData) : this.addRecipe(formData);
-          }}>
-            <div class="form-group">
-              <label class="form-label">Title *</label>
-              <input class="form-input" name="title" type="text" required value="${recipe?.title || ''}" />
-            </div>
-            <div class="form-group">
-              <label class="form-label">Description</label>
-              <input class="form-input" name="description" type="text" value="${recipe?.description || ''}" />
-            </div>
-            <div class="form-group">
-              <label class="form-label">Ingredients * (one per line)</label>
-              <textarea class="form-textarea" name="ingredients" required>${recipe?.ingredients.join('\n') || ''}</textarea>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Instructions * (one per line)</label>
-              <textarea class="form-textarea" name="instructions" required>${recipe?.instructions.join('\n') || ''}</textarea>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Notes</label>
-              <textarea class="form-textarea" name="notes">${recipe?.notes || ''}</textarea>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Color</label>
-              <input type="hidden" name="color" value="${this.selectedColor}" />
-              <div class="color-picker">
-                ${colorOptions.map(color => html`
-                  <div 
-                    class="color-option${this.selectedColor === color ? ' selected' : ''}" 
-                    style="background-color: ${color}"
-                    @click=${() => { this.selectedColor = color; }}
-                  ></div>
-                `)}
-              </div>
-            </div>
-            ${this.errorMessage ? html`
-              <div class="error-message">${this.errorMessage}</div>
-            ` : ''}
-            <div class="modal-actions">
-              <button type="button" class="btn btn-secondary" @click=${isEdit ? this.closeEditModal : this.closeAddModal} ?disabled=${this.saving}>Cancel</button>
-              <button type="submit" class="btn btn-primary" ?disabled=${this.saving}>
-                ${this.saving ? html`<span class="loading-spinner"></span>` : ''}
-                ${isEdit ? 'Update' : 'Add'} Recipe
-              </button>
-            </div>
-          </form>
+          ${this.saveError ? html`<ha-alert alert-type="error">${this.saveError}</ha-alert>` : ''}
         </div>
-      </div>
+        <div slot="primaryAction">
+          <ha-button @click=${this.saveRecipe} ?disabled=${this.saving}>
+            ${this.saving ? html`<ha-circular-progress active size="small" slot="prefix"></ha-circular-progress>` : ''}
+            ${isEdit ? 'Update' : 'Add'}
+          </ha-button>
+        </div>
+      </ha-dialog>
     `;
   }
 
   render() {
     if (this.loading) {
-      return html`
-        <div class="collection-container">
-          <div class="collection-header">
-            <div class="collection-title">Loading...</div>
-          </div>
-          <div class="loading">Loading recipes...</div>
-        </div>
-      `;
+      return html`<ha-circular-progress active></ha-circular-progress>`;
     }
-
     if (this.error) {
-      return html`
-        <div class="collection-container">
-          <div class="collection-header">
-            <div class="collection-title">Error</div>
-          </div>
-          <div class="error">${this.error}</div>
-        </div>
-      `;
+      return html`<ha-alert alert-type="error">${this.error}</ha-alert>`;
     }
-
+    const content = this.currentView === 'detail' ? this.renderDetail() : this.currentView === 'tray' ? this.renderTray() : this.renderCollection();
     return html`
-      ${this.currentView === 'tray' ? this.renderTrayView() : this.currentView === 'collection' ? this.renderCollectionView() : this.renderDetailView()}
-      ${this.showAddModal ? this.renderRecipeModal() : ''}
-      ${this.showEditModal ? this.renderRecipeModal(this.editingRecipe) : ''}
+      ${content}
+      ${this.showAddDialog || this.showEditDialog ? this.renderDialog() : ''}
     `;
+  }
+
+  static getStubConfig(): TemplateResult {
+    return html``;
   }
 }
 
-window.customCards = window.customCards || [];
-window.customCards.push({
-  type: 'recipecards-card',
-  name: 'RecipeCards Card',
-  description: 'A retro recipe card for Home Assistant',
-});
+declare global {
+  interface HTMLElementTagNameMap {
+    'recipecards-card': RecipeCardsCard;
+  }
+}
+
+if (customElements.get('recipecards-card') == null) {
+  customElements.define('recipecards-card', RecipeCardsCard);
+}

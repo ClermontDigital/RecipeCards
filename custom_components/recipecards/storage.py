@@ -38,6 +38,15 @@ class RecipeStorage:
         await self.async_load_recipes()  # Ensure we have latest data
         self._recipes.append(recipe)
         await self.async_save_recipes()
+
+        # Parse times from instructions and notes
+        text = "\n".join(recipe.instructions) + "\n" + (recipe.notes or "")
+        parsed = recipe.parse_times(text)
+        recipe.prep_time = parsed['prep_time']
+        recipe.cook_time = parsed['cook_time']
+        recipe.total_time = parsed['total_time']
+        await self.async_save_recipes()
+
         await self._notify_update()
 
     async def async_update_recipe(self, recipe_id: str, updated_recipe: Recipe) -> bool:
@@ -46,6 +55,15 @@ class RecipeStorage:
             if recipe.id == recipe_id:
                 self._recipes[idx] = updated_recipe
                 await self.async_save_recipes()
+
+                # Parse times from updated instructions and notes
+                text = "\n".join(updated_recipe.instructions) + "\n" + (updated_recipe.notes or "")
+                parsed = updated_recipe.parse_times(text)
+                updated_recipe.prep_time = parsed['prep_time']
+                updated_recipe.cook_time = parsed['cook_time']
+                updated_recipe.total_time = parsed['total_time']
+                await self.async_save_recipes()
+
                 await self._notify_update()
                 return True
         return False
