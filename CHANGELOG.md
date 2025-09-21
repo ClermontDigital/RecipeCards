@@ -1,3 +1,7 @@
+## 1.8.1
+
+- Version bump for release
+
 ## 1.7.2
 
 - Fix: add resilient fallback to serve the card under `/local/recipecards-card.js` by copying the bundled file to `/config/www/` if direct static serving is unavailable on some setups
