@@ -76,6 +76,8 @@ def validate_image(value) -> Optional[str]:
     raise vol.Invalid("Invalid image format (base64 or URL expected)")
     return value
 
+_optional_minutes = vol.Any(None, vol.All(vol.Coerce(int), vol.Range(min=0, max=1440)))
+
 ADD_RECIPE_SCHEMA = vol.Schema({
     vol.Optional(ATTR_CONFIG_ENTRY_ID): cv.string,  # Made optional for auto-detection
     vol.Required(ATTR_TITLE): vol.All(cv.string, vol.Length(min=1, max=100)),
@@ -84,10 +86,12 @@ ADD_RECIPE_SCHEMA = vol.Schema({
     vol.Optional(ATTR_NOTES, default=""): vol.All(cv.string, vol.Length(max=1000)),
     vol.Optional(ATTR_INSTRUCTIONS, default=[]): vol.All(cv.ensure_list, [vol.All(cv.string, vol.Length(max=500))]),
     vol.Optional(ATTR_COLOR, default="#FFD700"): validate_color,
-    vol.Optional("image", default=None): validate_image,
-    vol.Optional("prep_time", default=None): vol.All(vol.Coerce(int), vol.Range(min=0, max=1440)),  # Up to 24 hours
-    vol.Optional("cook_time", default=None): vol.All(vol.Coerce(int), vol.Range(min=0, max=1440)),
-    vol.Optional("total_time", default=None): vol.All(vol.Coerce(int), vol.Range(min=0, max=1440)),
+    # NOTE: no `default=` on these. Voluptuous validates defaults, so `default=None`
+    # piped through Coerce(int) raised on *every* call and rejected the service outright.
+    vol.Optional("image"): validate_image,
+    vol.Optional("prep_time"): _optional_minutes,  # Up to 24 hours
+    vol.Optional("cook_time"): _optional_minutes,
+    vol.Optional("total_time"): _optional_minutes,
 })
 
 UPDATE_RECIPE_SCHEMA = vol.Schema({
@@ -99,10 +103,10 @@ UPDATE_RECIPE_SCHEMA = vol.Schema({
     vol.Optional(ATTR_NOTES): vol.All(cv.string, vol.Length(max=1000)),
     vol.Optional(ATTR_INSTRUCTIONS): vol.All(cv.ensure_list, [vol.All(cv.string, vol.Length(max=500))]),
     vol.Optional(ATTR_COLOR): validate_color,
-    vol.Optional("image", default=None): validate_image,
-    vol.Optional("prep_time", default=None): vol.All(vol.Coerce(int), vol.Range(min=0, max=1440)),
-    vol.Optional("cook_time", default=None): vol.All(vol.Coerce(int), vol.Range(min=0, max=1440)),
-    vol.Optional("total_time", default=None): vol.All(vol.Coerce(int), vol.Range(min=0, max=1440)),
+    vol.Optional("image"): validate_image,
+    vol.Optional("prep_time"): _optional_minutes,
+    vol.Optional("cook_time"): _optional_minutes,
+    vol.Optional("total_time"): _optional_minutes,
 })
 
 DELETE_RECIPE_SCHEMA = vol.Schema({
@@ -190,7 +194,6 @@ async def async_add_recipe(call: ServiceCall) -> None:
     )
     
     await storage.async_add_recipe(recipe)
-    await coordinator.async_request_refresh()
     _LOGGER.info("Added recipe: %s", recipe.title)
 
 async def async_update_recipe(call: ServiceCall) -> None:
@@ -227,7 +230,6 @@ async def async_update_recipe(call: ServiceCall) -> None:
     updated_recipe = Recipe.from_dict(updated_recipe_data)
     
     await storage.async_update_recipe(recipe_id, updated_recipe)
-    await coordinator.async_request_refresh()
     _LOGGER.info("Updated recipe: %s", recipe_id)
 
 async def async_delete_recipe(call: ServiceCall) -> None:
@@ -247,7 +249,6 @@ async def async_delete_recipe(call: ServiceCall) -> None:
     # Remove the per-recipe entity if present
     if entry_id:
         cleanup_recipe_entities(call.hass, entry_id, recipe_id)
-    await coordinator.async_request_refresh()
     _LOGGER.info("Deleted recipe: %s", recipe_id)
 
 async def async_register_services(hass: HomeAssistant) -> None:

@@ -1,3 +1,68 @@
+## 1.9.0
+
+Repair release. Recipe creation could not succeed at all in 1.8.x — five independent defects sat on
+the same code path, and each failure was swallowed before it reached the log.
+
+### Fixed — each of these alone prevented the integration from working
+
+- **Services rejected every call.** `prep_time`, `cook_time`, `total_time` and `max_time` were
+  declared as `vol.Optional(..., default=None)` piped through `vol.Coerce(int)`. Voluptuous validates
+  defaults, so `int(None)` raised and `add_recipe`/`update_recipe`/`recipe_search` returned a bare
+  400 no matter what was passed. The defaults are gone and the fields now accept `None`.
+- **`Recipe.parse_times` was not callable.** `@classmethod` was applied twice. Chained classmethod
+  descriptors were deprecated in Python 3.11 and removed in 3.13, so on Home Assistant 2025.12+
+  every write raised `TypeError: 'classmethod' object is not callable`.
+- **WebSocket API never responded.** All six commands were `async def` but lacked
+  `@websocket_api.async_response`. Home Assistant invoked them synchronously and discarded the
+  coroutine, so `connection.send_result` was never reached and the card's `callWS` promise hung
+  forever instead of rejecting.
+- **Options flow crashed on entry.** `config_flow.py` used `cv.text` eight times with `cv` never
+  imported — and `cv.text` does not exist. Settings → Configure → Add new recipe raised `NameError`.
+  Now imports `config_validation` and uses `cv.string`.
+- **Card was served stale.** `www/recipecards-card.js` had not been rebuilt since 1.7.x. The
+  `recipecards-card/` TypeScript tree cannot compile (it imports npm packages that do not exist and
+  the repo has no bundler) and is now documented as legacy; the shipped JS is the source of truth.
+
+### Fixed — data loss and correctness
+
+- **Half-written records.** `async_add_recipe` saved to disk *before* parsing times and notified the
+  coordinator *after*, so a parse failure persisted the recipe while leaving the sensor stale. Times
+  are now parsed before the single save.
+- **Time parsing never worked.** `extract_time` searched for `min`/`hour` inside a capture group that
+  by construction held only the bare number, so every parse returned `None`. Rewritten to read the
+  unit from the match: "Prep for 10 minutes", "Bake 25 min", "Roast for 1 hour 30 min" all work.
+  Explicitly supplied times are no longer overwritten by parsed ones.
+- **`update_recipe` wiped fields.** Injected `None` defaults were merged over the stored record,
+  clearing image and times on every edit — including a title-only change.
+- **`recipe_search` crashed** comparing `None > int` when a recipe had no total time.
+- **Sensor lagged writes by 10 seconds.** Storage used the debounced `async_request_refresh`; a
+  delete straight after an add left the sensor stale. Now refreshes immediately.
+- **Storage was never removed** with its config entry. Added `async_remove_entry`, so deleting a
+  section deletes its store instead of orphaning it.
+- **Services were never unregistered** on unload — the `api_registered` bookkeeping key meant
+  `hass.data[DOMAIN]` was never empty.
+
+### Fixed — frontend
+
+- Card accepts a bare `type: custom:recipecards-card` (as the docs have always shown) and provides
+  `getStubConfig`, so adding it from the card picker works.
+- Save and delete failures are surfaced as a Home Assistant notification instead of being logged to
+  the browser console with the dialog left open.
+- Recipe text is HTML-escaped in the add/edit form; a title containing a quote no longer corrupts it.
+- The card no longer refetches and rebuilds its entire DOM on every state change in the instance.
+
+### Changed
+
+- `register_static_path` (removed from HA in 2025.7) replaced with `async_register_static_paths`;
+  the dead `lovelace.resources.async_get_registry` import removed. Minimum supported HA is 2024.7.
+- Manifest declares `http` as a dependency and `frontend`/`lovelace` as after-dependencies.
+- All blocking file I/O moved off the event loop.
+- Bare `except: pass` blocks replaced with real logging — five errors were firing on every startup
+  with nothing written to the log.
+- `services.yaml` now declares the time and image fields the schema has always accepted.
+- Test suite rewritten against a real Home Assistant instance (30 tests, all passing). The previous
+  suite mocked the exact seams where the bugs lived.
+
 ## 1.8.1
 
 - Version bump for release

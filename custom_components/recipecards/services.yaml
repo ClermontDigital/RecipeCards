@@ -47,6 +47,42 @@ add_recipe:
       default: "#FFD700"
       selector:
         color_rgb:
+    prep_time:
+      name: Prep time
+      description: Preparation time in minutes. Parsed from the text if omitted.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 1440
+          unit_of_measurement: min
+          mode: box
+    cook_time:
+      name: Cook time
+      description: Cooking time in minutes. Parsed from the text if omitted.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 1440
+          unit_of_measurement: min
+          mode: box
+    total_time:
+      name: Total time
+      description: Total time in minutes. Defaults to prep + cook when both are known.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 1440
+          unit_of_measurement: min
+          mode: box
+    image:
+      name: Image
+      description: Image URL, or a data:image/... base64 string.
+      required: false
+      selector:
+        text:
 
 update_recipe:
   name: Update Recipe
@@ -102,6 +138,42 @@ update_recipe:
       required: false
       selector:
         color_rgb:
+    prep_time:
+      name: Prep time
+      description: Preparation time in minutes. Parsed from the text if omitted.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 1440
+          unit_of_measurement: min
+          mode: box
+    cook_time:
+      name: Cook time
+      description: Cooking time in minutes. Parsed from the text if omitted.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 1440
+          unit_of_measurement: min
+          mode: box
+    total_time:
+      name: Total time
+      description: Total time in minutes. Defaults to prep + cook when both are known.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 1440
+          unit_of_measurement: min
+          mode: box
+    image:
+      name: Image
+      description: Image URL, or a data:image/... base64 string.
+      required: false
+      selector:
+        text:
 
 delete_recipe:
   name: Delete Recipe

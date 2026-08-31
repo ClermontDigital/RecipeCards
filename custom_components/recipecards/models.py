@@ -2,6 +2,20 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Any
 import re
 
+_DURATION_UNIT_RE = re.compile(
+    r"(\d+(?:\.\d+)?)\s*(hours|hour|hrs|hr|h|minutes|minute|mins|min)\b",
+    re.IGNORECASE,
+)
+
+_TIME_PHRASE_RE = re.compile(
+    r"(?P<label>preparation|prep|cook|bake|roast|grill|total|overall)"
+    r"(?:\s*time)?[\s:\-]*(?:for\s+)?"
+    r"(?P<body>(?:\d+(?:\.\d+)?\s*"
+    r"(?:hours|hour|hrs|hr|h|minutes|minute|mins|min)\b\s*)+)",
+    re.IGNORECASE,
+)
+
+
 @dataclass
 class Recipe:
     id: str
@@ -49,46 +63,54 @@ class Recipe:
         )
 
     @classmethod
-    @classmethod
     def parse_times(cls, text: str) -> dict[str, Optional[int]]:
-        """Parse prep_time, cook_time, total_time from instructions/notes text using regex."""
-        # Combine all text for parsing
-        full_text = text.lower() if isinstance(text, str) else str(text)
+        """Parse prep_time, cook_time and total_time (minutes) out of recipe text.
 
-        times: dict[str, Optional[int]] = {'prep_time': None, 'cook_time': None, 'total_time': None}
+        Recognises phrasings like "Prep: 15 min", "bake for 1 hour 30 minutes",
+        "total 45 mins". Returns None for anything it cannot find.
+        """
+        times: dict[str, Optional[int]] = {
+            "prep_time": None,
+            "cook_time": None,
+            "total_time": None,
+        }
+        if not text:
+            return times
 
-        # Regex patterns for common time formats (minutes or hours)
-        def extract_time(match_groups: tuple) -> Optional[int]:
-            if not match_groups or match_groups[0] is None:
-                return None
-            mins = 0
-            min_str = str(match_groups[0]).strip()
-            # Extract hours
-            hours_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:h|hr|hour|hours)', min_str)
-            if hours_match:
-                hours = float(hours_match.group(1))
-                mins += int(hours * 60)
-            # Extract minutes
-            min_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:min|mins|minute|minutes)', min_str)
-            if min_match:
-                mins += int(float(min_match.group(1)))
-            return mins if mins > 0 else None
+        for match in _TIME_PHRASE_RE.finditer(str(text)):
+            label = match.group("label").lower()
+            minutes = cls._duration_to_minutes(match.group("body"))
+            if minutes is None:
+                continue
+            if label.startswith("prep"):
+                key = "prep_time"
+            elif label in ("total", "overall"):
+                key = "total_time"
+            else:
+                key = "cook_time"
+            if times[key] is None:  # first mention wins
+                times[key] = minutes
 
-        # Prep time
-        prep_match = re.search(r'(?:prep|preparation)[\s:]*(\d+(?:\.\d+)?)\s*(?:min|minutes|mins|(?:hr|hours|h)\.?\s*(\d+(?:\.\d+)?)?)', full_text, re.IGNORECASE)
-        if prep_match:
-            times['prep_time'] = extract_time(prep_match.groups())
-
-        # Cook/Bake time
-        cook_match = re.search(r'(?:cook|bake|roast|grill)[\s:]*(\d+(?:\.\d+)?)\s*(?:min|minutes|mins|(?:hr|hours|h)\.?\s*(\d+(?:\.\d+)?)?)', full_text, re.IGNORECASE)
-        if cook_match:
-            times['cook_time'] = extract_time(cook_match.groups())
-
-        # Total time (direct or sum if both prep and cook present)
-        total_match = re.search(r'(?:total|overall)[\s:]*(\d+(?:\.\d+)?)\s*(?:min|minutes|mins|(?:hr|hours|h)\.?\s*(\d+(?:\.\d+)?)?)', full_text, re.IGNORECASE)
-        if total_match:
-            times['total_time'] = extract_time(total_match.groups())
-        elif times['prep_time'] is not None and times['cook_time'] is not None:
-            times['total_time'] = times['prep_time'] + times['cook_time']
+        if (
+            times["total_time"] is None
+            and times["prep_time"] is not None
+            and times["cook_time"] is not None
+        ):
+            times["total_time"] = times["prep_time"] + times["cook_time"]
 
         return times
+
+    @staticmethod
+    def _duration_to_minutes(body: str) -> Optional[int]:
+        """Sum every "<number> <unit>" pair in `body` into whole minutes."""
+        total = 0.0
+        found = False
+        for value, unit in _DURATION_UNIT_RE.findall(body):
+            if unit.lower().startswith("h"):
+                total += float(value) * 60
+            else:
+                total += float(value)
+            found = True
+        if not found or total <= 0:
+            return None
+        return int(round(total))

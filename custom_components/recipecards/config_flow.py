@@ -7,6 +7,7 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
+from homeassistant.helpers import config_validation as cv
 
 from .const import DOMAIN
 def _validate_color(value) -> str:
@@ -103,10 +104,10 @@ class RecipeCardsOptionsFlow(config_entries.OptionsFlow):
         """Collect full recipe fields and save to this entry's storage."""
         schema = vol.Schema({
             vol.Required("title"): str,
-            vol.Optional("description", default=""): cv.text,
-            vol.Optional("ingredients", default=""): cv.text,  # one per line
-            vol.Optional("notes", default=""): cv.text,
-            vol.Optional("instructions", default=""): cv.text,  # one per line
+            vol.Optional("description", default=""): cv.string,
+            vol.Optional("ingredients", default=""): cv.string,  # one per line
+            vol.Optional("notes", default=""): cv.string,
+            vol.Optional("instructions", default=""): cv.string,  # one per line
             vol.Optional("color", default="#FFD700"): str,
         })
 
@@ -196,10 +197,10 @@ class RecipeCardsOptionsFlow(config_entries.OptionsFlow):
 
         schema = vol.Schema({
             vol.Required("title", default=recipe.title): str,
-            vol.Optional("description", default=recipe.description or ""): cv.text,
-            vol.Optional("ingredients", default="\n".join(recipe.ingredients or [])): cv.text,
-            vol.Optional("notes", default=recipe.notes or ""): cv.text,
-            vol.Optional("instructions", default="\n".join(recipe.instructions or [])): cv.text,
+            vol.Optional("description", default=recipe.description or ""): cv.string,
+            vol.Optional("ingredients", default="\n".join(recipe.ingredients or [])): cv.string,
+            vol.Optional("notes", default=recipe.notes or ""): cv.string,
+            vol.Optional("instructions", default="\n".join(recipe.instructions or [])): cv.string,
             vol.Optional("color", default=recipe.color or "#FFD700"): str,
         })
 

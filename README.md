@@ -2,7 +2,7 @@
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![HACS Badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/custom-components/hacs)
-[![Version](https://img.shields.io/badge/version-1.7.2-green.svg)](https://github.com/ClermontDigital/RecipeCards)
+[![Version](https://img.shields.io/badge/version-1.9.0-green.svg)](https://github.com/ClermontDigital/RecipeCards)
 
 Retro-style recipe card management for Home Assistant. Store, browse, and display recipes in a classic 80s-inspired card interface with flip animations and persistent storage.
 
@@ -19,7 +19,7 @@ Retro-style recipe card management for Home Assistant. Store, browse, and displa
 ## Quick Setup
 
 ### Requirements
-- Home Assistant 2024.1+
+- Home Assistant 2024.7+ (the card is served via `async_register_static_paths`)
 - HACS (Home Assistant Community Store)
 
 ### Installation
@@ -29,9 +29,14 @@ Retro-style recipe card management for Home Assistant. Store, browse, and displa
 4. Add integration via Settings → Devices & Services
 
 ### Lovelace Card Auto-Loading
-The bundled buildless card is automatically served and registered as a Lovelace resource. No manual resource configuration is needed in storage dashboards. The integration also adds a version parameter to the resource URL (e.g., `/recipecards/recipecards-card.js?v=1.7.2`) to bust browser caches after upgrades.
+The bundled buildless card is served from `/recipecards/recipecards-card.js` and loaded into the
+frontend automatically — you do **not** need to add a Lovelace resource on storage dashboards. A
+version parameter is appended (e.g. `/recipecards/recipecards-card.js?v=1.9.0`) to bust browser
+caches after an upgrade.
 
-If your environment blocks direct static paths, the integration also copies the file to `/config/www/` and registers the fallback resource at `/local/recipecards-card.js?v=1.7.2`.
+If static path registration is unavailable, the integration falls back to copying the file into
+`/config/www/` and loading `/local/recipecards-card.js`. Exactly one URL is ever loaded, so the
+custom element is never defined twice.
 
 ### Configuration
 1. **Add RecipeCards Integration (Multiple Sections Supported):**
@@ -52,6 +57,8 @@ If your environment blocks direct static paths, the integration also copies the 
    - YAML:
      - `type: custom:recipecards-card`
      - `entity: sensor.recipe_cards` (optional; the card uses the WS API by default)
+
+After upgrading, do a hard refresh (Ctrl/Cmd+Shift+R) so the browser picks up the new card.
 
 If you use YAML‑mode dashboards, add a resource manually:
 ```yaml
@@ -106,7 +113,13 @@ data:
   recipe_id: "your-recipe-id"
 ```
 
-> **Note:** Config entry IDs are now auto-detected! You only need to specify `config_entry_id` if you have multiple RecipeCards integrations.
+> **Note:** `config_entry_id` is optional when you have a single section. With **multiple**
+> sections it is not auto-detected in any meaningful sense — the first configured section wins —
+> so pass it explicitly whenever more than one section exists.
+
+**Times.** `prep_time`, `cook_time` and `total_time` are optional and given in minutes. If you leave
+them out, they are parsed from your instructions and notes — "Prep for 10 minutes", "Bake for 25
+minutes" and "Roast for 1 hour 30 min" are all understood. Anything you pass explicitly is kept as-is.
 
 ### Sections (Groups)
 
@@ -265,12 +278,29 @@ From the integration entry row, click Configure. You’ll see a menu:
 - Rename this section — change the section title
 Repeat Add to create multiple recipes under the same section.
 
+## Upgrading to 1.9.0
+
+1.9.0 is a repair release. If you ran any earlier 1.8.x, recipe creation could not work at all — see
+[CHANGELOG.md](CHANGELOG.md) for the full list. After upgrading:
+
+1. Restart Home Assistant.
+2. Hard-refresh your browser (Ctrl/Cmd+Shift+R).
+3. Add a recipe. It should appear immediately, without a restart.
+
+Recipes written by an earlier version were saved to disk even when the UI showed nothing, so you may
+find existing recipes reappear after the upgrade. Nothing is lost or migrated — the same store file
+is used.
+
 ## Troubleshooting
 
-- **Card not displaying**: Check that recipes exist and the Lovelace card is properly configured
-- **Tab bar not showing**: Ensure you have multiple recipes added to see the tab navigation
-- **Integration not loading**: Restart Home Assistant after installation
-- **Recipes not saving**: Verify the integration is properly configured
+- **Card not displaying**: hard-refresh the browser first. Then check
+  `http://<your-ha>:8123/recipecards/recipecards-card.js` returns the file rather than a 404.
+- **"Custom element doesn't exist: recipecards-card"**: the card JS did not load. Restart Home
+  Assistant, then hard-refresh. Check the log for `Recipe Cards:` warnings.
+- **Tab bar not showing**: the tab navigation only appears once you have more than one recipe.
+- **Integration not loading**: restart Home Assistant after installation.
+- **Recipes not saving**: check the log. Save failures are now surfaced in the UI as a notification
+  rather than only in the browser console.
 
 Enable debug logging:
 ```yaml
@@ -281,10 +311,23 @@ logger:
 
 ## Development
 
-- Python 3.10+
-- TypeScript/LitElement for frontend
+- Python 3.13+ (Home Assistant 2026.x ships 3.14)
+- The shipped Lovelace card is `custom_components/recipecards/www/recipecards-card.js` — plain,
+  buildless JavaScript, and the **source of truth**. The `recipecards-card/` TypeScript tree is
+  legacy and is not currently built or shipped; do not edit it expecting changes to take effect.
 - Follows [semantic versioning](https://semver.org/)
-- See `tests/` for backend unit tests
+
+Run the test suite against a real Home Assistant:
+
+```bash
+python3 -m venv venv
+./venv/bin/pip install homeassistant pytest pytest-asyncio pytest-homeassistant-custom-component
+./venv/bin/python -m pytest tests/ --asyncio-mode=auto
+```
+
+`tests/recipecards/test_regression.py` covers each defect that made 1.8.0 unusable. The WebSocket
+tests deliberately go through `hass_ws_client` rather than calling handlers directly — calling a
+handler directly cannot detect a missing `@websocket_api.async_response`.
 
 ## Contributing
 

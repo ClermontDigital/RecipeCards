@@ -1,207 +1,179 @@
 """The Recipe Cards integration."""
 from __future__ import annotations
 
+import logging
+import shutil
+from pathlib import Path
+
+from homeassistant.components import frontend
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
-from homeassistant.components import frontend
-from pathlib import Path
-import json
-import shutil
-
-from .const import DOMAIN
-from .storage import RecipeStorage
-from .services import async_register_services, async_remove_services
-from .models import Recipe
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+from homeassistant.loader import async_get_integration
 from homeassistant.util import slugify
 
+from .const import DOMAIN
+from .services import async_register_services, async_remove_services
+from .storage import RecipeStorage
+
+_LOGGER = logging.getLogger(__name__)
+
 PLATFORMS: list[Platform] = [Platform.SENSOR]
+
+CARD_URL = "/recipecards/recipecards-card.js"
+CARD_FILENAME = "recipecards-card.js"
+
+
+def _register_api(hass: HomeAssistant) -> None:
+    """Register the WebSocket API exactly once per HA run."""
+    hass.data.setdefault(DOMAIN, {})
+    if hass.data[DOMAIN].get("api_registered"):
+        return
+    from .api import register_api  # local import: avoids import-time side effects
+
+    register_api(hass)
+    hass.data[DOMAIN]["api_registered"] = True
+
+
+async def async_setup(hass: HomeAssistant, config: dict) -> bool:
+    """Set up the Recipe Cards domain."""
+    _register_api(hass)
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Recipe Cards from a config entry."""
-    # Initialize domain data structure
-    hass.data.setdefault(DOMAIN, {})
-    # Ensure WebSocket API is registered even if async_setup wasn't called
-    if not hass.data[DOMAIN].get("api_registered"):
-        # Lazy import to avoid import-time side effects during config flow discovery
-        from .api import register_api  # noqa: WPS433 (local import by design)
-        register_api(hass)
-        hass.data[DOMAIN]["api_registered"] = True
-    
-    # Initialize storage
+    _register_api(hass)
+
     storage = RecipeStorage(hass, entry.entry_id)
-    
+
     async def async_update_data():
         """Fetch data from storage."""
         return await storage.async_load_recipes()
 
     coordinator = DataUpdateCoordinator(
         hass,
-        logger=__import__("logging").getLogger(__name__),
+        logger=_LOGGER,
         name=f"recipecards_sensor_{entry.entry_id}",
         update_method=async_update_data,
         update_interval=None,
     )
-    
-    # Set up entry data structure
+
     hass.data[DOMAIN][entry.entry_id] = {
         "storage": storage,
         "coordinator": coordinator,
     }
 
-    # Let storage trigger coordinator refreshes on any write
-    storage.set_update_callback(coordinator.async_request_refresh)
-    
+    # Let storage trigger coordinator refreshes on any write. Use async_refresh,
+    # not async_request_refresh: the latter is debounced with a 10s cooldown, so a
+    # delete straight after an add would leave the sensor stale for ten seconds.
+    # Writes here are user-initiated and rare, so there is nothing to coalesce.
+    storage.set_update_callback(coordinator.async_refresh)
+
     await coordinator.async_config_entry_first_refresh()
 
-    # No default recipe creation; entries represent empty sections
-    
-    # Register services
     await async_register_services(hass)
-    
-    # Setup platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    # Best-effort: migrate existing per-recipe entity_ids to prefix 'recipe_'
-    async def _migrate_entity_ids() -> None:
-        try:
-            registry = er.async_get(hass)
-            recipes = await storage.async_load_recipes()
-            for r in recipes:
-                unique_id = f"{entry.entry_id}_{r.id}"
-                expected = f"sensor.recipe_{slugify.slugify(r.title)}"
-                current = registry.async_get_entity_id("sensor", DOMAIN, unique_id)
-                if current and current != expected and not registry.async_get(expected):
-                    registry.async_update_entity(current, new_entity_id=expected)
-        except Exception:
-            pass
+    await _async_migrate_entity_ids(hass, entry, storage)
+    await _async_setup_frontend(hass)
 
-    hass.async_create_task(_migrate_entity_ids())
-
-    # Serve and auto-load the bundled Lovelace card (no build step required)
-    try:
-        pkg_dir = Path(__file__).parent
-        card_path = pkg_dir / "www" / "recipecards-card.js"
-        if card_path.exists():
-            url_base = "/recipecards/recipecards-card.js"
-
-            # Read the integration version for cache-busting
-            version = None
-            try:
-                manifest_path = pkg_dir / "manifest.json"
-                version = json.loads(manifest_path.read_text(encoding="utf-8")).get("version")
-            except Exception:  # noqa: BLE001
-                version = None
-            versioned_url = f"{url_base}?v={version}" if version else url_base
-
-            # Serve static file at a fixed URL
-            try:
-                hass.http.register_static_path(url_base, str(card_path))
-            except Exception:  # noqa: BLE001 - path might already be registered
-                pass
-
-            # Also expose the containing directory so '/recipecards/recipecards-card.js' resolves
-            try:
-                hass.http.register_static_path("/recipecards", str(card_path.parent))
-            except Exception:  # noqa: BLE001 - path might already be registered
-                pass
-
-            # Do not proactively load the '/recipecards' URL to avoid 404s in some setups.
-            # We rely on the '/local' fallback resource for loading in the UI.
-
-            # Fallback: also copy to /config/www and register under /local
-            try:
-                cfg_www = Path(hass.config.path("www"))
-                if not cfg_www.exists():
-                    cfg_www.mkdir(parents=True, exist_ok=True)
-                local_path = cfg_www / "recipecards-card.js"
-                # Copy if missing or different size
-                try:
-                    need_copy = (not local_path.exists()) or (local_path.stat().st_size != card_path.stat().st_size)
-                except Exception:  # noqa: BLE001
-                    need_copy = True
-                if need_copy:
-                    try:
-                        shutil.copyfile(str(card_path), str(local_path))
-                    except Exception:  # noqa: BLE001
-                        pass
-                local_url_base = "/local/recipecards-card.js"
-                local_versioned = f"{local_url_base}?v={version}" if version else local_url_base
-                try:
-                    frontend.add_extra_js_url(hass, local_versioned)
-                except Exception:  # noqa: BLE001
-                    pass
-            except Exception:  # noqa: BLE001
-                pass
-
-            # Register only the '/local' resource in the Lovelace registry to avoid 404s.
-            try:
-                from homeassistant.components.lovelace.resources import async_get_registry
-
-                async def _ensure_lovelace_resource_local_only() -> None:
-                    registry = await async_get_registry(hass)
-                    local_url_base = "/local/recipecards-card.js"
-                    local_versioned = f"{local_url_base}?v={version}" if version else local_url_base
-                    # Remove any stale '/recipecards' resources if present to prevent 404s
-                    try:
-                        for item in list(registry.async_items()):
-                            url = getattr(item, "url", None) if not isinstance(item, dict) else item.get("url")
-                            if url and url.split("?")[0] == url_base:
-                                try:
-                                    await registry.async_delete_item(getattr(item, "id", item["id"]))  # type: ignore[index]
-                                except Exception:
-                                    pass
-                    except Exception:
-                        pass
-
-                    # Ensure the '/local' resource exists (or create it)
-                    for item in registry.async_items():
-                        url = getattr(item, "url", None) if not isinstance(item, dict) else item.get("url")
-                        if url and url.split("?")[0] == local_url_base:
-                            try:
-                                await registry.async_update_item(getattr(item, "id", item["id"]), {  # type: ignore[index]
-                                    "url": local_versioned,
-                                })
-                            except Exception:
-                                pass
-                            break
-                    else:
-                        await registry.async_create_item({"res_type": "js", "url": local_versioned})
-
-                hass.async_create_task(_ensure_lovelace_resource_local_only())
-            except Exception:  # noqa: BLE001
-                pass
-    except Exception:  # noqa: BLE001 - best-effort frontend helper
-        # Card auto-loading is best-effort; backend still functions without it
-        pass
-    
     return True
+
+
+async def _async_migrate_entity_ids(
+    hass: HomeAssistant, entry: ConfigEntry, storage: RecipeStorage
+) -> None:
+    """Best-effort: move per-recipe entity_ids onto the 'recipe_' prefix."""
+    try:
+        registry = er.async_get(hass)
+        for recipe in await storage.async_load_recipes():
+            unique_id = f"{entry.entry_id}_{recipe.id}"
+            expected = f"sensor.recipe_{slugify(recipe.title)}"
+            current = registry.async_get_entity_id("sensor", DOMAIN, unique_id)
+            if current and current != expected and not registry.async_get(expected):
+                registry.async_update_entity(current, new_entity_id=expected)
+    except Exception:  # noqa: BLE001 - migration must never block setup
+        _LOGGER.exception("Recipe Cards: entity_id migration failed")
+
+
+async def _async_setup_frontend(hass: HomeAssistant) -> None:
+    """Serve the bundled Lovelace card and load it into the frontend.
+
+    Preferred route is a registered static path. If that fails for any reason we
+    fall back to copying the card into <config>/www and loading it from /local.
+    Exactly one URL is ever loaded, so the custom element is defined only once.
+    """
+    if hass.data[DOMAIN].get("frontend_registered"):
+        return
+
+    card_path = Path(__file__).parent / "www" / CARD_FILENAME
+    if not await hass.async_add_executor_job(card_path.is_file):
+        _LOGGER.error("Recipe Cards: bundled card missing at %s", card_path)
+        return
+
+    try:
+        integration = await async_get_integration(hass, DOMAIN)
+        version = integration.version
+    except Exception:  # noqa: BLE001
+        version = None
+
+    def _versioned(url: str) -> str:
+        return f"{url}?v={version}" if version else url
+
+    try:
+        await hass.http.async_register_static_paths(
+            [StaticPathConfig(CARD_URL, str(card_path), False)]
+        )
+        url = CARD_URL
+    except Exception:  # noqa: BLE001 - fall back to /local below
+        _LOGGER.warning(
+            "Recipe Cards: static path registration failed, falling back to /local",
+            exc_info=True,
+        )
+        url = await hass.async_add_executor_job(_copy_card_to_www, hass, card_path)
+        if url is None:
+            return
+
+    try:
+        frontend.add_extra_js_url(hass, _versioned(url))
+    except Exception:  # noqa: BLE001 - the backend works without the card
+        _LOGGER.warning("Recipe Cards: could not auto-load the card", exc_info=True)
+        return
+
+    hass.data[DOMAIN]["frontend_registered"] = True
+    _LOGGER.debug("Recipe Cards: card served from %s", url)
+
+
+def _copy_card_to_www(hass: HomeAssistant, card_path: Path) -> str | None:
+    """Copy the card into <config>/www. Runs in the executor - blocking I/O."""
+    try:
+        www_dir = Path(hass.config.path("www"))
+        www_dir.mkdir(parents=True, exist_ok=True)
+        target = www_dir / CARD_FILENAME
+        if not target.exists() or target.stat().st_size != card_path.stat().st_size:
+            shutil.copyfile(card_path, target)
+        return f"/local/{CARD_FILENAME}"
+    except Exception:  # noqa: BLE001
+        _LOGGER.exception("Recipe Cards: could not copy card into <config>/www")
+        return None
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
-        hass.data[DOMAIN].pop(entry.entry_id)
-        # Remove services if this is the last entry
-        if not hass.data[DOMAIN]:
+        hass.data[DOMAIN].pop(entry.entry_id, None)
+        # Remove services once the last *entry* is gone. Bookkeeping keys such as
+        # "api_registered" are not entries, so check for entry dicts specifically.
+        if not any(isinstance(v, dict) for v in hass.data[DOMAIN].values()):
             await async_remove_services(hass)
     return unload_ok
 
 
-async def async_setup(hass: HomeAssistant, config: dict) -> bool:
-    """Set up the Recipe Cards domain.
-
-    Registers the WebSocket API and prepares the domain storage.
-    """
-    hass.data.setdefault(DOMAIN, {})
-    if not hass.data[DOMAIN].get("api_registered"):
-        # Lazy import to avoid import-time side effects during config flow discovery
-        from .api import register_api  # noqa: WPS433 (local import by design)
-        # Register WebSocket API commands (idempotent via our flag)
-        register_api(hass)
-        hass.data[DOMAIN]["api_registered"] = True
-    return True
+async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Delete this entry's stored recipes when the entry is removed."""
+    await RecipeStorage(hass, entry.entry_id).async_remove()

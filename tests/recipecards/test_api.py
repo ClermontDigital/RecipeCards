@@ -1,84 +1,95 @@
 """Tests for the Recipe Cards WebSocket API.
 
-Skips if Home Assistant isn't available in the environment.
+These drive the commands through HA's real dispatch path via hass_ws_client.
+Calling the handlers directly (as this file used to) cannot catch a missing
+@websocket_api.async_response, because HA invokes handlers synchronously and
+discards the returned coroutine.
 """
 import pytest
+from homeassistant.core import HomeAssistant
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-ha = pytest.importorskip("homeassistant")
-from unittest.mock import AsyncMock  # noqa: E402
-from homeassistant.core import HomeAssistant  # type: ignore # noqa: E402
-from homeassistant.setup import async_setup_component  # type: ignore # noqa: E402
-from custom_components.recipecards.const import DOMAIN  # noqa: E402
-from custom_components.recipecards.api import async_list_recipes  # noqa: E402
-from custom_components.recipecards.models import Recipe  # noqa: E402
+from custom_components.recipecards.const import DOMAIN
 
 
-@pytest.fixture
-async def setup_integration(hass: HomeAssistant):
-    """Set up the Recipe Cards integration."""
-    assert await async_setup_component(hass, DOMAIN, {"recipecards": {}})
+async def _add_entry(hass: HomeAssistant, title: str) -> MockConfigEntry:
+    entry = MockConfigEntry(domain=DOMAIN, title=title, data={})
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    return entry
+
+
+async def _add_recipe(hass: HomeAssistant, entry, title: str) -> None:
+    await hass.services.async_call(
+        DOMAIN, "add_recipe",
+        {"config_entry_id": entry.entry_id, "title": title},
+        blocking=True,
+    )
     await hass.async_block_till_done()
 
 
-async def test_async_list_recipes_no_entry(hass: HomeAssistant, setup_integration):
-    """Test listing recipes with no config entry."""
-    connection = AsyncMock()
-    msg = {"id": 1}
-
-    await async_list_recipes(hass, connection, msg)
-
-    connection.send_result.assert_called_once_with(1, [])
-
-
-async def test_async_list_recipes_with_entry(hass: HomeAssistant, setup_integration):
-    """Test listing recipes with a config entry."""
-    entry_id = "test_entry"
-    storage = AsyncMock()
-    storage.async_load_recipes.return_value = [
-        Recipe(id="1", title="Test Recipe", ingredients=[], instructions=[], color="#FFD700")
-    ]
-    hass.data[DOMAIN] = {
-        entry_id: {"storage": storage, "coordinator": AsyncMock()}
-    }
-
-    connection = AsyncMock()
-    msg = {"id": 1}
-
-    await async_list_recipes(hass, connection, msg)
-
-    connection.send_result.assert_called_once()
-    args, kwargs = connection.send_result.call_args
-    assert args[0] == 1
-    assert isinstance(args[1], list)
-    assert args[1][0]["id"] == "1"
-    assert args[1][0]["title"] == "Test Recipe"
+async def test_recipe_list_empty(hass: HomeAssistant, hass_ws_client):
+    await _add_entry(hass, "Desserts")
+    client = await hass_ws_client(hass)
+    await client.send_json({"id": 1, "type": "recipecards/recipe_list"})
+    msg = await client.receive_json()
+    assert msg["success"] is True
+    assert msg["result"] == []
 
 
-async def test_async_list_recipes_aggregates_multiple_entries(hass: HomeAssistant, setup_integration):
-    entry1 = "e1"
-    entry2 = "e2"
-    storage1 = AsyncMock()
-    storage1.async_load_recipes.return_value = [
-        Recipe(id="1", title="R1", ingredients=[], instructions=[], color="#FFD700")
-    ]
-    storage2 = AsyncMock()
-    storage2.async_load_recipes.return_value = [
-        Recipe(id="2", title="R2", ingredients=[], instructions=[], color="#FFD700")
-    ]
-    hass.data[DOMAIN] = {
-        entry1: {"storage": storage1, "coordinator": AsyncMock()},
-        entry2: {"storage": storage2, "coordinator": AsyncMock()},
-    }
+async def test_recipe_list_aggregates_multiple_entries(hass: HomeAssistant, hass_ws_client):
+    desserts = await _add_entry(hass, "Desserts")
+    mains = await _add_entry(hass, "Mains")
+    await _add_recipe(hass, desserts, "Pavlova")
+    await _add_recipe(hass, mains, "Roast lamb")
 
-    connection = AsyncMock()
-    msg = {"id": 2}
+    client = await hass_ws_client(hass)
+    await client.send_json({"id": 1, "type": "recipecards/recipe_list"})
+    msg = await client.receive_json()
 
-    await async_list_recipes(hass, connection, msg)
+    assert msg["success"] is True
+    assert sorted(r["title"] for r in msg["result"]) == ["Pavlova", "Roast lamb"]
+    assert {r["_entry_title"] for r in msg["result"]} == {"Desserts", "Mains"}
 
-    connection.send_result.assert_called_once()
-    args, kwargs = connection.send_result.call_args
-    assert args[0] == 2
-    data = args[1]
-    assert len(data) == 2
-    ids = set(d["id"] for d in data)
-    assert {"1", "2"}.issubset(ids)
+
+async def test_recipe_get_and_delete(hass: HomeAssistant, hass_ws_client):
+    entry = await _add_entry(hass, "Desserts")
+    await _add_recipe(hass, entry, "Pavlova")
+    recipe_id = hass.states.get("sensor.recipe_cards").attributes["recipes"][0]["id"]
+
+    client = await hass_ws_client(hass)
+    await client.send_json({"id": 1, "type": "recipecards/recipe_get", "recipe_id": recipe_id})
+    msg = await client.receive_json()
+    assert msg["success"] is True
+    assert msg["result"]["title"] == "Pavlova"
+
+    await client.send_json({"id": 2, "type": "recipecards/recipe_delete", "recipe_id": recipe_id})
+    msg = await client.receive_json()
+    assert msg["success"] is True
+    assert hass.states.get("sensor.recipe_cards").state == "0"
+
+
+async def test_recipe_get_missing_returns_error(hass: HomeAssistant, hass_ws_client):
+    await _add_entry(hass, "Desserts")
+    client = await hass_ws_client(hass)
+    await client.send_json({"id": 1, "type": "recipecards/recipe_get", "recipe_id": "nope"})
+    msg = await client.receive_json()
+    assert msg["success"] is False
+    assert msg["error"]["code"] == "not_found"
+
+
+async def test_recipe_add_via_websocket(hass: HomeAssistant, hass_ws_client):
+    entry = await _add_entry(hass, "Desserts")
+    client = await hass_ws_client(hass)
+    await client.send_json({
+        "id": 1,
+        "type": "recipecards/recipe_add",
+        "recipe": {"title": "Lamingtons", "instructions": ["Bake for 25 minutes."]},
+    })
+    msg = await client.receive_json()
+
+    assert msg["success"] is True
+    assert msg["result"]["title"] == "Lamingtons"
+    assert msg["result"]["cook_time"] == 25
+    assert hass.states.get("sensor.recipe_cards").state == "1"

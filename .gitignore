@@ -38,3 +38,5 @@ home-assistant_v2.db
 
 # Others
 *.log 
+# Node dependencies (never commit these)
+node_modules/

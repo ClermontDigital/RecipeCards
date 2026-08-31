@@ -34,36 +34,33 @@ class RecipeStorage:
     async def async_save_recipes(self) -> None:
         await self._store.async_save([r.to_dict() for r in (self._recipes or [])])
 
+    @staticmethod
+    def _apply_parsed_times(recipe: Recipe) -> None:
+        """Fill in any time fields the caller did not supply, from the recipe text."""
+        text = "\n".join(recipe.instructions or []) + "\n" + (recipe.notes or "")
+        parsed = Recipe.parse_times(text)
+        for key in ("prep_time", "cook_time", "total_time"):
+            if getattr(recipe, key, None) is None:
+                setattr(recipe, key, parsed[key])
+
     async def async_add_recipe(self, recipe: Recipe) -> None:
         await self.async_load_recipes()  # Ensure we have latest data
+
+        # Parse times BEFORE persisting, so a parse failure can never leave a
+        # half-written record on disk with no coordinator refresh behind it.
+        self._apply_parsed_times(recipe)
+
         self._recipes.append(recipe)
         await self.async_save_recipes()
-
-        # Parse times from instructions and notes
-        text = "\n".join(recipe.instructions) + "\n" + (recipe.notes or "")
-        parsed = recipe.parse_times(text)
-        recipe.prep_time = parsed['prep_time']
-        recipe.cook_time = parsed['cook_time']
-        recipe.total_time = parsed['total_time']
-        await self.async_save_recipes()
-
         await self._notify_update()
 
     async def async_update_recipe(self, recipe_id: str, updated_recipe: Recipe) -> bool:
         await self.async_load_recipes()  # Ensure we have latest data
         for idx, recipe in enumerate(self._recipes):
             if recipe.id == recipe_id:
+                self._apply_parsed_times(updated_recipe)
                 self._recipes[idx] = updated_recipe
                 await self.async_save_recipes()
-
-                # Parse times from updated instructions and notes
-                text = "\n".join(updated_recipe.instructions) + "\n" + (updated_recipe.notes or "")
-                parsed = updated_recipe.parse_times(text)
-                updated_recipe.prep_time = parsed['prep_time']
-                updated_recipe.cook_time = parsed['cook_time']
-                updated_recipe.total_time = parsed['total_time']
-                await self.async_save_recipes()
-
                 await self._notify_update()
                 return True
         return False
@@ -73,6 +70,15 @@ class RecipeStorage:
         self._recipes = [r for r in self._recipes if r.id != recipe_id]
         await self.async_save_recipes()
         await self._notify_update()
+
+    async def async_remove(self) -> None:
+        """Delete this entry's store files. Used when the config entry is removed."""
+        for store in (self._store, self._legacy_store):
+            try:
+                await store.async_remove()
+            except Exception:  # noqa: BLE001
+                pass
+        self._recipes = []
 
     async def _notify_update(self) -> None:
         """Notify Home Assistant of recipe updates."""

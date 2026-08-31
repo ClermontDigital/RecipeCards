@@ -2,11 +2,15 @@
 // This file is auto-served and auto-loaded by the integration; no NPM build needed.
 (function() {
   class RecipeCardsCard extends HTMLElement {
+    static getStubConfig() {
+      return { type: 'custom:recipecards-card' };
+    }
+
     setConfig(config) {
-      if (!config || (!config.entity && !config.entry_id && !config.recipe_id)) {
-        throw new Error('You need to define an entity, entry_id, or recipe_id');
-      }
-      this._config = config;
+      // All keys are optional: with none set the card shows every recipe from
+      // every configured section, which is what the docs have always described.
+      this._config = config || {};
+      config = this._config;
       this._title = config.title || 'Recipe Collection';
       this._view = config.view || (config.recipe_id ? 'detail' : 'collection');
       this._selected = null;
@@ -20,7 +24,23 @@
     set hass(hass) {
       this._hass = hass;
       if (!this._config) return;
+      // HA sets `hass` on every card for every state change in the instance.
+      // Only reload when a recipe sensor actually moved, otherwise this fires a
+      // WebSocket round-trip and a full DOM rebuild several times a second.
+      const sig = this._recipeSignature(hass);
+      if (sig === this._sig) return;
+      this._sig = sig;
       this._load();
+    }
+
+    _recipeSignature(hass) {
+      let sig = '';
+      for (const id in hass.states) {
+        if (id.startsWith('sensor.recipe')) sig += id + hass.states[id].last_updated + '|';
+      }
+      const watched = this._config && this._config.entity;
+      if (watched && hass.states[watched]) sig += watched + hass.states[watched].last_updated;
+      return sig;
     }
 
     getCardSize() {
@@ -255,7 +275,19 @@
       });
     }
 
-    _escape(t){ return String(t ?? '').replace(/[<>]/g,''); }
+    _toast(message) {
+      this.dispatchEvent(new CustomEvent('hass-notification', {
+        detail: { message: String(message) },
+        bubbles: true,
+        composed: true,
+      }));
+    }
+
+    _escape(t){
+      return String(t ?? '')
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
 
     _openAdd(){ this._openForm(); }
     _openEdit(r){ this._openForm(r); }
@@ -263,11 +295,11 @@
     _openForm(r){
       const wrap = document.createElement('div');
       wrap.innerHTML = `
-        <div class="rc-field"><label class="rc-label">Title *</label><input class="rc-input rc-title" value="${r?.title??''}"></div>
-        <div class="rc-field"><label class="rc-label">Description</label><input class="rc-input rc-desc" value="${r?.description??''}"></div>
-        <div class="rc-field"><label class="rc-label">Ingredients (one per line)</label><textarea class="rc-textarea rc-ings">${(r?.ingredients||[]).join('\n')}</textarea></div>
-        <div class="rc-field"><label class="rc-label">Instructions (one per line)</label><textarea class="rc-textarea rc-steps">${(r?.instructions||[]).join('\n')}</textarea></div>
-        <div class="rc-field"><label class="rc-label">Notes</label><textarea class="rc-textarea rc-notes">${r?.notes??''}</textarea></div>
+        <div class="rc-field"><label class="rc-label">Title *</label><input class="rc-input rc-title" value="${this._escape(r?.title)}"></div>
+        <div class="rc-field"><label class="rc-label">Description</label><input class="rc-input rc-desc" value="${this._escape(r?.description)}"></div>
+        <div class="rc-field"><label class="rc-label">Ingredients (one per line)</label><textarea class="rc-textarea rc-ings">${this._escape((r?.ingredients||[]).join('\n'))}</textarea></div>
+        <div class="rc-field"><label class="rc-label">Instructions (one per line)</label><textarea class="rc-textarea rc-steps">${this._escape((r?.instructions||[]).join('\n'))}</textarea></div>
+        <div class="rc-field"><label class="rc-label">Notes</label><textarea class="rc-textarea rc-notes">${this._escape(r?.notes)}</textarea></div>
         <div class="rc-actions">
           <mwc-button raised class="rc-save">${r? 'Update':'Add'} Recipe</mwc-button>
           <mwc-button class="rc-cancel">Cancel</mwc-button>
@@ -300,13 +332,11 @@
             if (target) payload.config_entry_id = target;
             await this._hass.callService('recipecards', 'add_recipe', payload);
           }
-          dlg.close();
-          // reload list to reflect changes
-          console.log('RecipeCards: Recipe saved, reloading...');
           await this._load();
+          dlg.close();
         } catch (e) {
-          // eslint-disable-next-line no-console
           console.error('Recipe save failed', e);
+          this._toast(`Could not save recipe: ${(e && (e.message || e.error)) || e}`);
         }
       });
     }
@@ -321,8 +351,8 @@
         this._view='collection';
         this._load();
       } catch(e){
-        // eslint-disable-next-line no-console
         console.error('Delete failed', e);
+        this._toast(`Could not delete recipe: ${(e && (e.message || e.error)) || e}`);
       }
     }
   }
