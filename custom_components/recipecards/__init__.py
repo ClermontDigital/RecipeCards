@@ -107,12 +107,18 @@ async def _async_setup_frontend(hass: HomeAssistant) -> None:
     fall back to copying the card into <config>/www and loading it from /local.
     Exactly one URL is ever loaded, so the custom element is defined only once.
     """
+    # Claim the registration synchronously, before the first await. Entries are set
+    # up concurrently, and every await below is a point where another entry could
+    # otherwise pass this guard too - which registered the card twice, from two
+    # different URLs, because the loser of the static-path race fell back to /local.
     if hass.data[DOMAIN].get("frontend_registered"):
         return
+    hass.data[DOMAIN]["frontend_registered"] = True
 
     card_path = Path(__file__).parent / "www" / CARD_FILENAME
     if not await hass.async_add_executor_job(card_path.is_file):
         _LOGGER.error("Recipe Cards: bundled card missing at %s", card_path)
+        hass.data[DOMAIN]["frontend_registered"] = False
         return
 
     try:
@@ -136,15 +142,16 @@ async def _async_setup_frontend(hass: HomeAssistant) -> None:
         )
         url = await hass.async_add_executor_job(_copy_card_to_www, hass, card_path)
         if url is None:
+            hass.data[DOMAIN]["frontend_registered"] = False
             return
 
     try:
         frontend.add_extra_js_url(hass, _versioned(url))
     except Exception:  # noqa: BLE001 - the backend works without the card
         _LOGGER.warning("Recipe Cards: could not auto-load the card", exc_info=True)
+        hass.data[DOMAIN]["frontend_registered"] = False
         return
 
-    hass.data[DOMAIN]["frontend_registered"] = True
     _LOGGER.debug("Recipe Cards: card served from %s", url)
 
 

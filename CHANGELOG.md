@@ -1,3 +1,19 @@
+## 1.9.1
+
+- **Fixed: the Lovelace card was loaded twice when more than one section exists.**
+  Config entries are set up concurrently, and the `frontend_registered` guard was
+  claimed only after several `await`s — so every entry passed it. The loser of the
+  static-path race hit "path already registered", fell back to copying the card into
+  `/config/www`, and the browser ended up importing the card from two different URLs:
+
+  ```
+  import("/recipecards/recipecards-card.js?v=1.9.0");
+  import("/local/recipecards-card.js?v=1.9.0");
+  ```
+
+  The guard is now claimed synchronously, before the first `await`, and released again
+  only if setup genuinely fails. Single-section installs were unaffected.
+
 ## 1.9.0
 
 Repair release. Recipe creation could not succeed at all in 1.8.x — five independent defects sat on

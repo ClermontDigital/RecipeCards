@@ -220,3 +220,46 @@ async def test_recipes_survive_a_reload(hass: HomeAssistant) -> None:
     state = hass.states.get(SENSOR)
     assert state.state == "1"
     assert state.attributes["recipes"][0]["title"] == "Sticky date pudding"
+
+
+async def test_card_is_registered_once_when_entries_race(hass: HomeAssistant) -> None:
+    """The card must be loaded from exactly one URL, however many sections exist.
+
+    Regression: the `frontend_registered` guard was set *after* several awaits, so
+    entries setting up concurrently all passed it. The loser of the static-path
+    race hit "path already registered", fell back to /local, and the browser
+    imported the card twice from two different URLs.
+
+    The static-path stub sleeps before raising on the second call, which is what
+    forces the coroutines to interleave the way they do on a real startup.
+    """
+    import asyncio
+    from unittest.mock import patch
+
+    from custom_components.recipecards import _async_setup_frontend
+
+    await _setup(hass)
+    hass.data[DOMAIN]["frontend_registered"] = False  # re-arm
+
+    calls = []
+
+    async def _register(self, paths):  # unbound method: takes self
+        calls.append(paths)
+        n = len(calls)
+        await asyncio.sleep(0)  # yield, so a racing coroutine gets its turn
+        if n > 1:
+            raise RuntimeError("Static path already registered")
+
+    with (
+        patch(
+            "homeassistant.components.http.HomeAssistantHTTP.async_register_static_paths",
+            new=_register,
+        ),
+        patch("homeassistant.components.frontend.add_extra_js_url") as add_js,
+    ):
+        await asyncio.gather(*(_async_setup_frontend(hass) for _ in range(3)))
+
+    urls = [c.args[1] for c in add_js.call_args_list]
+    assert len(calls) == 1, f"static path registered {len(calls)} times"
+    assert len(urls) == 1, f"card registered {len(urls)} times: {urls}"
+    assert urls[0].startswith("/recipecards/"), urls
