@@ -1,39 +1,231 @@
-// Minimal buildless version of the RecipeCards Lovelace card.
-// This file is auto-served and auto-loaded by the integration; no NPM build needed.
-(function() {
+// RecipeCards Lovelace card - buildless, no NPM step.
+// Served and auto-loaded by the integration.
+(function () {
+  const ICONS = {
+    clock: 'mdi:clock-outline',
+    basket: 'mdi:basket-outline',
+    steps: 'mdi:format-list-numbered',
+    back: 'mdi:arrow-left',
+    more: 'mdi:dots-vertical',
+    add: 'mdi:plus',
+    search: 'mdi:magnify',
+  };
+
+  const STYLE = `
+    <style>
+      :host { display: block; }
+      .rc-wrap { --rc-radius: var(--ha-card-border-radius, 12px); }
+
+      /* ---------- header ---------- */
+      .rc-head {
+        display: flex; align-items: center; gap: 12px;
+        padding: 12px 16px 8px; flex-wrap: wrap;
+      }
+      .rc-head h2 {
+        margin: 0; flex: 1 1 auto; min-width: 0;
+        font-size: 1.25rem; font-weight: 500; line-height: 1.3;
+        color: var(--primary-text-color);
+      }
+      .rc-count {
+        font-size: .8rem; color: var(--secondary-text-color);
+        font-weight: 400; margin-left: 8px; white-space: nowrap;
+      }
+      .rc-search {
+        display: flex; align-items: center; gap: 6px;
+        background: var(--secondary-background-color);
+        border-radius: 999px; padding: 4px 12px; flex: 0 1 220px; min-width: 140px;
+      }
+      .rc-search ha-icon { --mdc-icon-size: 18px; color: var(--secondary-text-color); flex: none; }
+      .rc-search input {
+        border: 0; background: none; outline: none; width: 100%;
+        color: var(--primary-text-color); font: inherit; font-size: .9rem; padding: 4px 0;
+      }
+      .rc-tabs {
+        display: flex; gap: 6px; overflow-x: auto; padding: 0 16px 10px;
+        scrollbar-width: none;
+      }
+      .rc-tabs::-webkit-scrollbar { display: none; }
+      .rc-tab {
+        border: 1px solid var(--divider-color); background: none; cursor: pointer;
+        border-radius: 999px; padding: 5px 14px; font: inherit; font-size: .82rem;
+        color: var(--secondary-text-color); white-space: nowrap; transition: all .15s;
+      }
+      .rc-tab:hover { background: var(--secondary-background-color); }
+      .rc-tab[aria-selected="true"] {
+        background: var(--primary-color); border-color: var(--primary-color);
+        color: var(--text-primary-color, #fff); font-weight: 500;
+      }
+
+      /* ---------- grid ---------- */
+      .rc-grid {
+        display: grid; gap: 12px; padding: 4px 16px 16px;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      }
+      .rc-tile {
+        position: relative; display: flex; flex-direction: column;
+        border-radius: var(--rc-radius); overflow: hidden; cursor: pointer;
+        background: var(--card-background-color);
+        border: 1px solid var(--divider-color);
+        transition: transform .15s ease, box-shadow .15s ease;
+      }
+      .rc-tile:hover { transform: translateY(-2px); box-shadow: var(--ha-card-box-shadow, 0 4px 12px rgba(0,0,0,.18)); }
+      .rc-tile:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
+      .rc-band { height: 6px; flex: none; }
+      .rc-body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+      .rc-title {
+        font-size: 1rem; font-weight: 500; line-height: 1.3; color: var(--primary-text-color);
+        padding-right: 28px;
+      }
+      .rc-desc {
+        font-size: .84rem; color: var(--secondary-text-color); line-height: 1.45;
+        display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+      }
+      .rc-meta {
+        display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: auto; padding-top: 8px;
+        font-size: .76rem; color: var(--secondary-text-color);
+      }
+      .rc-meta span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+      .rc-meta ha-icon { --mdc-icon-size: 14px; }
+      .rc-section {
+        position: absolute; top: 14px; right: 12px;
+        font-size: .68rem; text-transform: uppercase; letter-spacing: .06em;
+        color: var(--secondary-text-color);
+      }
+      .rc-more {
+        position: absolute; top: 8px; right: 4px;
+        border: 0; background: none; cursor: pointer; border-radius: 50%;
+        color: var(--secondary-text-color); padding: 4px; line-height: 0;
+      }
+      .rc-more:hover { background: var(--secondary-background-color); color: var(--primary-text-color); }
+      .rc-more ha-icon { --mdc-icon-size: 18px; }
+
+      /* ---------- detail ---------- */
+      .rc-detail-head { padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+      .rc-detail-top { display: flex; align-items: center; gap: 8px; }
+      .rc-back {
+        border: 0; background: none; cursor: pointer; color: var(--secondary-text-color);
+        display: inline-flex; align-items: center; gap: 4px; font: inherit; font-size: .85rem;
+        padding: 6px 10px 6px 6px; border-radius: 999px;
+      }
+      .rc-back:hover { background: var(--secondary-background-color); color: var(--primary-text-color); }
+      .rc-back ha-icon { --mdc-icon-size: 18px; }
+      .rc-detail-head h2 { margin: 0; font-size: 1.5rem; font-weight: 500; line-height: 1.25; }
+      .rc-detail-desc { color: var(--secondary-text-color); font-size: .95rem; line-height: 1.5; }
+      .rc-stats { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+      .rc-stat {
+        display: inline-flex; align-items: center; gap: 5px;
+        background: var(--secondary-background-color); border-radius: 999px;
+        padding: 5px 12px; font-size: .8rem; color: var(--primary-text-color);
+      }
+      .rc-stat ha-icon { --mdc-icon-size: 15px; color: var(--secondary-text-color); }
+      .rc-stat b { font-weight: 500; }
+
+      .rc-cols { display: grid; gap: 20px; padding: 4px 16px 16px; grid-template-columns: 1fr; }
+      @media (min-width: 620px) { .rc-cols { grid-template-columns: minmax(200px, 0.8fr) 1.2fr; } }
+
+      .rc-col h3 {
+        margin: 0 0 10px; font-size: .78rem; text-transform: uppercase; letter-spacing: .08em;
+        color: var(--secondary-text-color); font-weight: 600;
+      }
+      .rc-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+      .rc-item {
+        display: flex; gap: 10px; align-items: flex-start; cursor: pointer;
+        padding: 7px 8px; border-radius: 8px; line-height: 1.5; font-size: .92rem;
+        transition: background .12s;
+      }
+      .rc-item:hover { background: var(--secondary-background-color); }
+      .rc-item.done { color: var(--disabled-text-color); text-decoration: line-through; }
+      .rc-check {
+        flex: none; width: 18px; height: 18px; margin-top: 2px; border-radius: 4px;
+        border: 2px solid var(--divider-color); display: inline-flex;
+        align-items: center; justify-content: center; font-size: 12px; line-height: 1;
+        color: var(--text-primary-color, #fff);
+      }
+      .rc-item.done .rc-check { background: var(--primary-color); border-color: var(--primary-color); }
+      .rc-step-n {
+        flex: none; width: 22px; height: 22px; border-radius: 50%; font-size: .75rem;
+        display: inline-flex; align-items: center; justify-content: center; margin-top: 1px;
+        background: var(--secondary-background-color); color: var(--secondary-text-color); font-weight: 600;
+      }
+      .rc-item.done .rc-step-n { background: var(--primary-color); color: var(--text-primary-color, #fff); }
+
+      .rc-notes {
+        margin: 0 16px 16px; padding: 12px 14px; border-radius: 8px;
+        background: var(--secondary-background-color); font-size: .88rem; line-height: 1.55;
+        color: var(--primary-text-color); border-left: 3px solid var(--rc-accent, var(--primary-color));
+      }
+      .rc-notes b {
+        display: block; font-size: .72rem; text-transform: uppercase; letter-spacing: .08em;
+        color: var(--secondary-text-color); margin-bottom: 4px; font-weight: 600;
+      }
+
+      /* ---------- tray ---------- */
+      .rc-tray { display: flex; gap: 10px; overflow-x: auto; padding: 4px 16px 14px; }
+      .rc-card-mini {
+        flex: none; width: 130px; height: 86px; border-radius: 10px; cursor: pointer;
+        border: 1px solid var(--divider-color); overflow: hidden; position: relative;
+        display: flex; flex-direction: column; background: var(--card-background-color);
+        transition: transform .15s, box-shadow .15s;
+      }
+      .rc-card-mini:hover { transform: translateY(-2px); }
+      .rc-card-mini[aria-selected="true"] { border-color: var(--primary-color); box-shadow: 0 0 0 1px var(--primary-color); }
+      .rc-card-mini .rc-band { height: 20px; }
+      .rc-mini-t {
+        padding: 6px 8px; font-size: .8rem; line-height: 1.25; font-weight: 500;
+        display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+      }
+
+      /* ---------- empty / form ---------- */
+      .rc-empty { padding: 28px 16px 34px; text-align: center; color: var(--secondary-text-color); }
+      .rc-empty ha-icon { --mdc-icon-size: 40px; opacity: .35; display: block; margin: 0 auto 10px; }
+      .rc-empty p { margin: 0 0 14px; font-size: .92rem; }
+
+      .rc-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+      .rc-label { font-size: .78rem; font-weight: 600; color: var(--secondary-text-color);
+                  text-transform: uppercase; letter-spacing: .05em; }
+      .rc-hint { font-size: .75rem; color: var(--secondary-text-color); font-weight: 400;
+                 text-transform: none; letter-spacing: 0; }
+      .rc-input, .rc-textarea {
+        width: 100%; box-sizing: border-box; padding: 9px 11px; font: inherit; font-size: .92rem;
+        border: 1px solid var(--divider-color); border-radius: 8px;
+        background: var(--card-background-color); color: var(--primary-text-color);
+      }
+      .rc-input:focus, .rc-textarea:focus { outline: none; border-color: var(--primary-color); }
+      .rc-textarea { min-height: 92px; resize: vertical; line-height: 1.5; }
+      .rc-swatches { display: flex; gap: 8px; flex-wrap: wrap; }
+      .rc-swatch { width: 28px; height: 28px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; }
+      .rc-swatch[aria-selected="true"] { border-color: var(--primary-text-color); }
+      .rc-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+    </style>
+  `;
+
+  const PALETTE = ['#D98F3B', '#8C3B2E', '#3E6B8A', '#5C8A3E', '#7B4B2A', '#6A4C93', '#B0455E', '#4A5568'];
+
   class RecipeCardsCard extends HTMLElement {
     static getStubConfig() {
       return { type: 'custom:recipecards-card' };
     }
 
     setConfig(config) {
-      // All keys are optional: with none set the card shows every recipe from
-      // every configured section, which is what the docs have always described.
       this._config = config || {};
-      config = this._config;
-      this._title = config.title || 'Recipe Collection';
-      this._view = config.view || (config.recipe_id ? 'detail' : 'collection');
+      this._title = this._config.title || 'Recipes';
+      this._view = this._config.view || (this._config.recipe_id ? 'detail' : 'collection');
       this._selected = null;
-      this._entryFilter = config.entry_id || 'all';
-      this.style.display = 'block';
-      this.style.padding = '8px';
-      this.style.boxSizing = 'border-box';
+      this._entryFilter = this._config.entry_id || 'all';
+      this._query = '';
       this._render();
     }
 
     set hass(hass) {
       this._hass = hass;
       if (!this._config) return;
-      // HA sets `hass` on every card for every state change in the instance.
-      // Only reload when a recipe sensor actually moved, otherwise this fires a
-      // WebSocket round-trip and a full DOM rebuild several times a second.
-      const sig = this._recipeSignature(hass);
+      const sig = this._signature(hass);
       if (sig === this._sig) return;
       this._sig = sig;
       this._load();
     }
 
-    _recipeSignature(hass) {
+    _signature(hass) {
       let sig = '';
       for (const id in hass.states) {
         if (id.startsWith('sensor.recipe')) sig += id + hass.states[id].last_updated + '|';
@@ -43,20 +235,10 @@
       return sig;
     }
 
-    getCardSize() {
-      return 3;
-    }
+    getCardSize() { return this._view === 'detail' ? 12 : 6; }
 
-    _header(html) {
-      return `
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-          <div style="font-weight:bold;">${html}</div>
-          <mwc-button raised class="rc-add">Add</mwc-button>
-        </div>
-      `;
-    }
-
-    async _load(){
+    // ---------- data ----------
+    async _load() {
       const cfg = this._config || {};
       this._error = null;
       try {
@@ -67,291 +249,480 @@
         } else {
           const list = await this._hass.callWS({ type: 'recipecards/recipe_list' });
           let recipes = Array.isArray(list) ? list : [];
-          if (cfg.entry_id) recipes = recipes.filter(x => x._entry_id === cfg.entry_id);
-          if (this._entryFilter && this._entryFilter !== 'all') recipes = recipes.filter(x => x._entry_id === this._entryFilter);
+          if (cfg.entry_id) recipes = recipes.filter((x) => x._entry_id === cfg.entry_id);
           this._recipes = recipes;
-          if (!this._selected && this._recipes.length) this._selected = this._recipes[0].id;
         }
-      } catch(e) {
-        // Fallback to legacy entity attribute if provided
+      } catch (e) {
         try {
           if (cfg.entity) {
             const st = this._hass.states[cfg.entity];
-            if (st && st.attributes && st.attributes.id) {
-              this._recipes = [st.attributes];
-              this._selected = st.attributes.id;
-            } else {
-              this._recipes = (st && st.attributes && st.attributes.recipes) || [];
-            }
+            this._recipes = (st && st.attributes && st.attributes.recipes) || [];
           } else {
             throw e;
           }
-        } catch(err) {
+        } catch (err) {
           this._recipes = [];
-          this._error = 'Failed to load recipes';
-          console.error('RecipeCards: Load error', err);
+          this._error = (err && err.message) ? `Could not load recipes: ${err.message}` : 'Could not load recipes.';
+          console.error('RecipeCards: load failed', err);
         }
-        console.log('RecipeCards: Loaded', this._recipes?.length, 'recipes');
       }
       this._render();
     }
 
-    _render() {
-      if (!this._config) return;
-      const recipes = this._recipes || [];
-      const err = this._error;
-
-      const style = `
-        <style>
-          .rc-grid { display:grid; grid-template-columns: repeat(auto-fill,minmax(180px,1fr)); gap:8px; }
-          .rc-tile { border:1px solid var(--divider-color); border-radius:8px; padding:10px; background:var(--card-background-color); cursor:pointer; }
-          .rc-t { font-weight:bold; margin-bottom:4px; }
-          .rc-actions { display:flex; gap:6px; margin-top:8px; }
-          .rc-btn { border:1px solid var(--divider-color); border-radius:6px; padding:4px 8px; background:none; cursor:pointer; }
-          .rc-detail h3 { margin: 0 0 6px 0; }
-          .rc-back { margin-bottom: 8px; }
-          .rc-field { margin: 6px 0; }
-          .rc-label { display:block; font-weight:bold; margin-bottom:2px; }
-          .rc-input, .rc-textarea { width:100%; box-sizing:border-box; padding:6px; border:1px solid var(--divider-color); border-radius:6px; background:var(--card-background-color); color:var(--primary-text-color); }
-          .rc-textarea { min-height: 70px; }
-          .rc-tools { display:flex; align-items:center; gap:8px; }
-        </style>
-      `;
-
-      if (err) {
-        this.innerHTML = `${style}<ha-alert alert-type="error">${err}</ha-alert>`;
-        return;
+    _visible() {
+      let list = this._recipes || [];
+      if (this._entryFilter && this._entryFilter !== 'all') {
+        list = list.filter((r) => r._entry_id === this._entryFilter);
       }
-
-      if (this._view === 'detail' && this._selected) {
-        const r = recipes.find(x => x.id === this._selected);
-        if (!r) { this._view = 'collection'; }
-        else {
-          this.innerHTML = `${style}
-            <mwc-button class="rc-back">Back</mwc-button>
-            <div class="rc-detail">
-              <h3>${this._escape(r.title)}</h3>
-              ${r.description ? `<div>${this._escape(r.description)}</div>` : ''}
-              ${r.ingredients?.length ? `<div><b>Ingredients</b><ul>${r.ingredients.map(i=>`<li>${this._escape(i)}</li>`).join('')}</ul></div>` : ''}
-              ${r.instructions?.length ? `<div><b>Instructions</b><ol>${r.instructions.map(i=>`<li>${this._escape(i)}</li>`).join('')}</ol></div>` : ''}
-              ${r.notes ? `<div><b>Notes</b><div>${this._escape(r.notes)}</div></div>` : ''}
-              <div class="rc-actions">
-                <button class="rc-btn rc-edit">Edit</button>
-                <button class="rc-btn rc-del">Delete</button>
-              </div>
-            </div>
-          `;
-          this.querySelector('.rc-back')?.addEventListener('click', ()=>{ this._view='collection'; this._render(); });
-          this.querySelector('.rc-edit')?.addEventListener('click', ()=> this._openEdit(r));
-          this.querySelector('.rc-del')?.addEventListener('click', ()=> this._delete(r));
-          return;
-        }
+      const q = (this._query || '').trim().toLowerCase();
+      if (q) {
+        list = list.filter((r) =>
+          (r.title || '').toLowerCase().includes(q) ||
+          (r.description || '').toLowerCase().includes(q) ||
+          (r.ingredients || []).some((i) => String(i).toLowerCase().includes(q)));
       }
+      return list;
+    }
 
-      const entryIds = Array.from(new Set((recipes||[]).map(r=>r._entry_id).filter(Boolean)));
-      if (this._view === 'tray') {
-        const tray = recipes.map(r=>`
-          <div class="rc-tile rc-tray" data-id="${this._escape(r.id)}" style="min-width:140px;height:100px;position:relative;display:flex;flex-direction:column;justify-content:flex-end;">
-            <div style="position:absolute;top:0;left:0;right:0;height:14px;border-radius:6px 6px 0 0;background:${r.color||'#bfa14a'}"></div>
-            <div class="rc-t" style="margin-top:16px">${this._escape(r.title)}</div>
-            <div class="rc-actions" style="position:absolute;right:6px;bottom:6px;gap:4px;">
-              <button class="rc-btn rc-edit">Edit</button>
-              <button class="rc-btn rc-del">Del</button>
-            </div>
-          </div>
-        `).join('');
-        const detail = (()=>{
-          const r = recipes.find(x=>x.id===this._selected);
-          if (!r) return '<ha-alert>Select a card to view</ha-alert>';
-          return `
-            <div class="rc-detail">
-              <h3>${this._escape(r.title)}</h3>
-              ${r.description ? `<div>${this._escape(r.description)}</div>` : ''}
-              ${r.ingredients?.length ? `<div><b>Ingredients</b><ul>${r.ingredients.map(i=>`<li>${this._escape(i)}</li>`).join('')}</ul></div>` : ''}
-              ${r.instructions?.length ? `<div><b>Instructions</b><ol>${r.instructions.map(i=>`<li>${this._escape(i)}</li>`).join('')}</ol></div>` : ''}
-              ${r.notes ? `<div><b>Notes</b><div>${this._escape(r.notes)}</div></div>` : ''}
-            </div>`;
-        })();
-
-        this.innerHTML = `${style}
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-            <div style="font-weight:bold;">${this._title}</div>
-            <mwc-button raised class="rc-add">Add</mwc-button>
-          </div>
-          <div style="display:flex;gap:10px;overflow:auto;padding:4px 0;">${tray}</div>
-          ${detail}
-        `;
-
-        this.querySelector('.rc-add')?.addEventListener('click', ()=> this._openAdd());
-        this.querySelectorAll('.rc-tray').forEach(tile => {
-          const id = tile.getAttribute('data-id');
-          tile.addEventListener('click', ()=>{ this._selected = id; this._render(); });
-          tile.querySelector('.rc-edit')?.addEventListener('click', (e)=>{ e.stopPropagation(); const r=recipes.find(x=>x.id===id); if(r) this._openEdit(r); });
-          tile.querySelector('.rc-del')?.addEventListener('click', (e)=>{ e.stopPropagation(); const r=recipes.find(x=>x.id===id); if(r) this._delete(r); });
-        });
-        return;
+    _sections() {
+      const seen = new Map();
+      for (const r of this._recipes || []) {
+        if (r._entry_id && !seen.has(r._entry_id)) seen.set(r._entry_id, r._entry_title || 'Section');
       }
-      const filterHtml = (entryIds.length > 1 || (this._config.entry_id && !entryIds.includes(this._config.entry_id))) ? `
-        <select class="rc-filter">
-          <option value="all" ${this._entryFilter==='all'?'selected':''}>All sets</option>
-          ${entryIds.map(id=>`<option value="${id}" ${this._entryFilter===id?'selected':''}>Set ${String(id).slice(0,6)}</option>`).join('')}
-        </select>
-      ` : '';
+      return Array.from(seen, ([id, title]) => ({ id, title }));
+    }
 
-      const groupByEntry = (this._config.group_by === 'entry') || (!this._config.group_by && new Set((recipes||[]).map(r=>r._entry_id).filter(Boolean)).size > 1);
+    // ---------- tick state (survives re-render and reload) ----------
+    _ticks(id) {
+      try { return new Set(JSON.parse(localStorage.getItem('rc-ticks-' + id) || '[]')); }
+      catch (e) { return new Set(); }
+    }
+    _toggleTick(id, key) {
+      const set = this._ticks(id);
+      if (set.has(key)) set.delete(key); else set.add(key);
+      try { localStorage.setItem('rc-ticks-' + id, JSON.stringify([...set])); } catch (e) { /* private mode */ }
+      return set;
+    }
 
-      if (!groupByEntry) {
-        const grid = recipes.map(r=>`
-        <div class="rc-tile" data-id="${this._escape(r.id)}">
-          <div class="rc-t">${this._escape(r.title)}</div>
-          ${r.description ? `<div>${this._escape(r.description)}</div>` : ''}
-          <div class="rc-actions">
-            <button class="rc-btn rc-open">Open</button>
-            <button class="rc-btn rc-edit">Edit</button>
-            <button class="rc-btn rc-del">Delete</button>
-          </div>
-        </div>
-      `).join('');
+    // ---------- helpers ----------
+    _esc(t) {
+      return String(t ?? '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
 
-        this.innerHTML = `${style}
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;" class="rc-tools">
-          <div style="font-weight:bold;">${this._title}</div>
-          <mwc-button raised class="rc-add">Add</mwc-button>
-        </div>
-        ${recipes.length ? `<div class="rc-grid">${grid}</div>` : `<ha-alert>Click Add to create your first recipe.</ha-alert>`}
-      `;
-
-        this.querySelector('.rc-add')?.addEventListener('click', ()=> this._openAdd());
-        this.querySelectorAll('.rc-tile').forEach(tile => {
-          const id = tile.getAttribute('data-id');
-          tile.querySelector('.rc-open')?.addEventListener('click', (e)=>{ e.stopPropagation(); this._selected=id; this._view='detail'; this._render(); });
-          tile.querySelector('.rc-edit')?.addEventListener('click', (e)=>{ e.stopPropagation(); const r=recipes.find(x=>x.id===id); if(r) this._openEdit(r); });
-          tile.querySelector('.rc-del')?.addEventListener('click', (e)=>{ e.stopPropagation(); const r=recipes.find(x=>x.id===id); if(r) this._delete(r); });
-        });
-        return;
-      }
-
-      // Group by entry
-      const groups = {};
-      for (const r of recipes) {
-        const id = r._entry_id || 'unknown';
-        const title = r._entry_title || `Set ${String(id).slice(0,6)}`;
-        if (!groups[id]) groups[id] = { title, recipes: [] };
-        groups[id].recipes.push(r);
-      }
-
-      const blocks = Object.entries(groups).map(([gid, g]) => {
-        const grid = g.recipes.map(r=>`
-          <div class="rc-tile" data-id="${this._escape(r.id)}">
-            <div class="rc-t">${this._escape(r.title)}</div>
-            ${r.description ? `<div>${this._escape(r.description)}</div>` : ''}
-            <div class="rc-actions">
-              <button class="rc-btn rc-open">Open</button>
-              <button class="rc-btn rc-edit">Edit</button>
-              <button class="rc-btn rc-del">Delete</button>
-            </div>
-          </div>
-        `).join('');
-        return `
-          <div style="display:flex;align-items:center;justify-content:space-between;margin:0 0 8px 0;" class="rc-tools">
-            <div style="font-weight:bold;">${this._escape(g.title)}</div>
-            <mwc-button raised class="rc-add" data-entry="${gid}">Add</mwc-button>
-          </div>
-          <div class="rc-grid">${grid}</div>
-        `;
-      }).join('');
-
-      this.innerHTML = `${style}${blocks || `<ha-alert>Click Add to create your first recipe.</ha-alert>`}`;
-      this.querySelectorAll('.rc-add').forEach(btn => btn.addEventListener('click', (e)=>{
-        const id = e.currentTarget.getAttribute('data-entry');
-        this._entryFilter = id || 'all';
-        this._openAdd();
-      }));
-      this.querySelectorAll('.rc-tile').forEach(tile => {
-        const id = tile.getAttribute('data-id');
-        tile.querySelector('.rc-open')?.addEventListener('click', (e)=>{ e.stopPropagation(); this._selected=id; this._view='detail'; this._render(); });
-        tile.querySelector('.rc-edit')?.addEventListener('click', (e)=>{ e.stopPropagation(); const all=[].concat(...Object.values(groups).map(x=>x.recipes)); const r=all.find(x=>x.id===id); if(r) this._openEdit(r); });
-        tile.querySelector('.rc-del')?.addEventListener('click', (e)=>{ e.stopPropagation(); const all=[].concat(...Object.values(groups).map(x=>x.recipes)); const r=all.find(x=>x.id===id); if(r) this._delete(r); });
-      });
+    _fmtTime(mins) {
+      if (!mins && mins !== 0) return null;
+      if (mins < 60) return `${mins} min`;
+      const h = Math.floor(mins / 60);
+      const m = mins % 60;
+      return m ? `${h} hr ${m} min` : `${h} hr`;
     }
 
     _toast(message) {
       this.dispatchEvent(new CustomEvent('hass-notification', {
-        detail: { message: String(message) },
-        bubbles: true,
-        composed: true,
+        detail: { message: String(message) }, bubbles: true, composed: true,
       }));
     }
 
-    _escape(t){
-      return String(t ?? '')
-        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-        .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    _target(recipe) {
+      if (recipe && recipe._entry_id) return recipe._entry_id;
+      if (this._entryFilter && this._entryFilter !== 'all') return this._entryFilter;
+      return this._config.entry_id || null;
     }
 
-    _openAdd(){ this._openForm(); }
-    _openEdit(r){ this._openForm(r); }
+    _metaHtml(r) {
+      const bits = [];
+      const t = this._fmtTime(r.total_time) || this._fmtTime(r.cook_time);
+      if (t) bits.push(`<span><ha-icon icon="${ICONS.clock}"></ha-icon>${t}</span>`);
+      if (r.ingredients && r.ingredients.length) {
+        bits.push(`<span><ha-icon icon="${ICONS.basket}"></ha-icon>${r.ingredients.length}</span>`);
+      }
+      if (r.instructions && r.instructions.length) {
+        bits.push(`<span><ha-icon icon="${ICONS.steps}"></ha-icon>${r.instructions.length} steps</span>`);
+      }
+      return bits.join('');
+    }
 
-    _openForm(r){
-      const wrap = document.createElement('div');
-      wrap.innerHTML = `
-        <div class="rc-field"><label class="rc-label">Title *</label><input class="rc-input rc-title" value="${this._escape(r?.title)}"></div>
-        <div class="rc-field"><label class="rc-label">Description</label><input class="rc-input rc-desc" value="${this._escape(r?.description)}"></div>
-        <div class="rc-field"><label class="rc-label">Ingredients (one per line)</label><textarea class="rc-textarea rc-ings">${this._escape((r?.ingredients||[]).join('\n'))}</textarea></div>
-        <div class="rc-field"><label class="rc-label">Instructions (one per line)</label><textarea class="rc-textarea rc-steps">${this._escape((r?.instructions||[]).join('\n'))}</textarea></div>
-        <div class="rc-field"><label class="rc-label">Notes</label><textarea class="rc-textarea rc-notes">${this._escape(r?.notes)}</textarea></div>
-        <div class="rc-actions">
-          <mwc-button raised class="rc-save">${r? 'Update':'Add'} Recipe</mwc-button>
-          <mwc-button class="rc-cancel">Cancel</mwc-button>
+    // ---------- render ----------
+    _render() {
+      if (!this._config) return;
+      if (this._error) {
+        this.innerHTML = `${STYLE}<ha-card><div class="rc-wrap"><ha-alert alert-type="error">${this._esc(this._error)}</ha-alert></div></ha-card>`;
+        return;
+      }
+      if (this._view === 'detail' && this._selected) {
+        const r = (this._recipes || []).find((x) => x.id === this._selected);
+        if (r) return this._renderDetail(r);
+        this._view = 'collection';
+      }
+      if (this._view === 'tray') return this._renderTray();
+      return this._renderCollection();
+    }
+
+    _headerHtml(count) {
+      const showSearch = (this._recipes || []).length > 3;
+      return `
+        <div class="rc-head">
+          <h2>${this._esc(this._title)}<span class="rc-count">${count} recipe${count === 1 ? '' : 's'}</span></h2>
+          ${showSearch ? `
+            <label class="rc-search">
+              <ha-icon icon="${ICONS.search}"></ha-icon>
+              <input type="search" placeholder="Search" value="${this._esc(this._query)}" aria-label="Search recipes">
+            </label>` : ''}
+          <ha-button raised class="rc-add">Add recipe</ha-button>
+        </div>`;
+    }
+
+    _tabsHtml() {
+      const sections = this._sections();
+      if (sections.length < 2 || this._config.entry_id) return '';
+      const tab = (id, label) =>
+        `<button class="rc-tab" role="tab" data-entry="${this._esc(id)}" aria-selected="${this._entryFilter === id}">${this._esc(label)}</button>`;
+      return `<div class="rc-tabs" role="tablist">
+        ${tab('all', 'All')}${sections.map((s) => tab(s.id, s.title)).join('')}
+      </div>`;
+    }
+
+    _tileHtml(r, showSection) {
+      const colour = r.color || PALETTE[0];
+      return `
+        <div class="rc-tile" data-id="${this._esc(r.id)}" tabindex="0" role="button"
+             aria-label="Open ${this._esc(r.title)}">
+          <div class="rc-band" style="background:${this._esc(colour)}"></div>
+          <button class="rc-more" data-id="${this._esc(r.id)}" aria-label="More actions for ${this._esc(r.title)}">
+            <ha-icon icon="${ICONS.more}"></ha-icon>
+          </button>
+          <div class="rc-body">
+            <div class="rc-title">${this._esc(r.title)}</div>
+            ${r.description ? `<div class="rc-desc">${this._esc(r.description)}</div>` : ''}
+            <div class="rc-meta">${this._metaHtml(r)}</div>
+          </div>
+          ${showSection && r._entry_title ? `<div class="rc-section">${this._esc(r._entry_title)}</div>` : ''}
+        </div>`;
+    }
+
+    _emptyHtml() {
+      const filtered = (this._recipes || []).length > 0;
+      return `<div class="rc-empty">
+        <ha-icon icon="mdi:chef-hat"></ha-icon>
+        <p>${filtered ? 'No recipes match that search.' : 'No recipes yet.'}</p>
+        ${filtered ? '' : '<ha-button raised class="rc-add">Add your first recipe</ha-button>'}
+      </div>`;
+    }
+
+    _renderCollection() {
+      const list = this._visible();
+      const showSection = !this._config.entry_id && this._entryFilter === 'all' && this._sections().length > 1;
+      this.innerHTML = `${STYLE}
+        <ha-card><div class="rc-wrap">
+          ${this._headerHtml(list.length)}
+          ${this._tabsHtml()}
+          ${list.length ? `<div class="rc-grid">${list.map((r) => this._tileHtml(r, showSection)).join('')}</div>` : this._emptyHtml()}
+        </div></ha-card>`;
+      this._wireCommon();
+      this._wireTiles();
+    }
+
+    _renderTray() {
+      const list = this._visible();
+      const sel = list.find((x) => x.id === this._selected) || list[0];
+      this.innerHTML = `${STYLE}
+        <ha-card><div class="rc-wrap">
+          ${this._headerHtml(list.length)}
+          ${this._tabsHtml()}
+          ${list.length ? `<div class="rc-tray">${list.map((r) => `
+            <div class="rc-card-mini" data-id="${this._esc(r.id)}" tabindex="0" role="button"
+                 aria-selected="${sel && sel.id === r.id}" aria-label="${this._esc(r.title)}">
+              <div class="rc-band" style="background:${this._esc(r.color || PALETTE[0])}"></div>
+              <div class="rc-mini-t">${this._esc(r.title)}</div>
+            </div>`).join('')}</div>` : this._emptyHtml()}
+          ${sel ? this._detailBodyHtml(sel) : ''}
+        </div></ha-card>`;
+      this._wireCommon();
+      this.querySelectorAll('.rc-card-mini').forEach((el) => {
+        const open = () => { this._selected = el.getAttribute('data-id'); this._render(); };
+        el.addEventListener('click', open);
+        el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
+      });
+      if (sel) this._wireDetailBody(sel);
+    }
+
+    _detailBodyHtml(r) {
+      const ticks = this._ticks(r.id);
+      const ing = (r.ingredients || []).map((item, i) => {
+        const done = ticks.has('i' + i);
+        return `<li class="rc-item ${done ? 'done' : ''}" data-tick="i${i}">
+          <span class="rc-check">${done ? '&#10003;' : ''}</span><span>${this._esc(item)}</span></li>`;
+      }).join('');
+      const steps = (r.instructions || []).map((item, i) => {
+        const done = ticks.has('s' + i);
+        return `<li class="rc-item ${done ? 'done' : ''}" data-tick="s${i}">
+          <span class="rc-step-n">${i + 1}</span><span>${this._esc(item)}</span></li>`;
+      }).join('');
+      return `
+        <div class="rc-cols">
+          ${ing ? `<div class="rc-col"><h3>Ingredients</h3><ul class="rc-list">${ing}</ul></div>` : ''}
+          ${steps ? `<div class="rc-col"><h3>Method</h3><ul class="rc-list">${steps}</ul></div>` : ''}
         </div>
-      `;
+        ${r.notes ? `<div class="rc-notes" style="--rc-accent:${this._esc(r.color || PALETTE[0])}"><b>Notes</b>${this._esc(r.notes)}</div>` : ''}`;
+    }
+
+    _renderDetail(r) {
+      const stats = this._statsHtml(r);
+      const pinned = this._config.view === 'detail' || this._config.recipe_id;
+
+      this.innerHTML = `${STYLE}
+        <ha-card><div class="rc-wrap">
+          <div class="rc-band" style="background:${this._esc(r.color || PALETTE[0])};height:8px"></div>
+          <div class="rc-detail-head">
+            <div class="rc-detail-top">
+              ${pinned ? '' : `<button class="rc-back"><ha-icon icon="${ICONS.back}"></ha-icon>All recipes</button>`}
+              <span style="flex:1"></span>
+              <button class="rc-more" style="position:static" data-id="${this._esc(r.id)}" aria-label="More actions">
+                <ha-icon icon="${ICONS.more}"></ha-icon>
+              </button>
+            </div>
+            <h2>${this._esc(r.title)}</h2>
+            ${r.description ? `<div class="rc-detail-desc">${this._esc(r.description)}</div>` : ''}
+            ${stats ? `<div class="rc-stats">${stats}</div>` : ''}
+          </div>
+          ${this._detailBodyHtml(r)}
+        </div></ha-card>`;
+
+      this.querySelector('.rc-back')?.addEventListener('click', () => {
+        this._view = this._config.view === 'detail' ? 'detail' : 'collection';
+        if (this._config.view === 'detail') return;
+        this._selected = null; this._render();
+      });
+      this._wireMore();
+      this._wireDetailBody(r);
+    }
+
+    _wireDetailBody(r, root) {
+      (root || this).querySelectorAll('.rc-item').forEach((el) => {
+        el.addEventListener('click', () => {
+          const key = el.getAttribute('data-tick');
+          const set = this._toggleTick(r.id, key);
+          const done = set.has(key);
+          el.classList.toggle('done', done);
+          const box = el.querySelector('.rc-check');
+          if (box) box.innerHTML = done ? '&#10003;' : '';
+        });
+      });
+    }
+
+    _wireCommon() {
+      this.querySelectorAll('.rc-add').forEach((b) => b.addEventListener('click', () => this._openForm()));
+      this.querySelectorAll('.rc-tab').forEach((b) => b.addEventListener('click', () => {
+        this._entryFilter = b.getAttribute('data-entry');
+        this._render();
+      }));
+      const search = this.querySelector('.rc-search input');
+      if (search) {
+        search.addEventListener('input', (e) => {
+          this._query = e.target.value;
+          const pos = e.target.selectionStart;
+          this._render();
+          const next = this.querySelector('.rc-search input');
+          if (next) { next.focus(); next.setSelectionRange(pos, pos); }
+        });
+      }
+      this._wireMore();
+    }
+
+    _wireTiles() {
+      this.querySelectorAll('.rc-tile').forEach((el) => {
+        const open = () => {
+          const r = (this._recipes || []).find((x) => x.id === el.getAttribute('data-id'));
+          if (r) this._openRecipe(r);
+        };
+        el.addEventListener('click', (e) => { if (!e.target.closest('.rc-more')) open(); });
+        el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
+      });
+    }
+
+    _wireMore() {
+      this.querySelectorAll('.rc-more').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const r = (this._recipes || []).find((x) => x.id === btn.getAttribute('data-id'));
+          if (r) this._openMenu(btn, r);
+        });
+      });
+    }
+
+    _openMenu(anchor, r) {
+      const existing = document.querySelector('.rc-menu-sheet');
+      if (existing) existing.remove();
+      const sheet = document.createElement('div');
+      sheet.className = 'rc-menu-sheet';
+      const rect = anchor.getBoundingClientRect();
+      sheet.setAttribute('style', `position:fixed;z-index:9999;top:${rect.bottom + 4}px;left:${Math.max(8, rect.right - 160)}px;
+        min-width:150px;background:var(--card-background-color,#fff);border:1px solid var(--divider-color,#ddd);
+        border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.24);overflow:hidden;`);
+      sheet.innerHTML = `
+        <button class="rc-menu-edit" style="all:unset;display:block;width:100%;box-sizing:border-box;padding:11px 14px;cursor:pointer;font-size:.9rem;color:var(--primary-text-color,#222);">Edit</button>
+        <button class="rc-menu-del" style="all:unset;display:block;width:100%;box-sizing:border-box;padding:11px 14px;cursor:pointer;font-size:.9rem;color:var(--error-color,#c62828);">Delete</button>`;
+      document.body.appendChild(sheet);
+      const close = () => { sheet.remove(); document.removeEventListener('click', close, true); };
+      setTimeout(() => document.addEventListener('click', close, true), 0);
+      sheet.querySelector('.rc-menu-edit').addEventListener('click', () => { close(); this._openForm(r); });
+      sheet.querySelector('.rc-menu-del').addEventListener('click', () => { close(); this._delete(r); });
+    }
+
+    // ---------- read a recipe ----------
+    _openRecipe(r) {
+      const stats = this._statsHtml(r);
+      const wrap = document.createElement('div');
+      wrap.innerHTML = `${STYLE}
+        <div class="rc-dialog-body">
+          <div class="rc-band" style="background:${this._esc(r.color || PALETTE[0])};height:6px;border-radius:3px;margin-bottom:14px"></div>
+          ${r.description ? `<div class="rc-detail-desc" style="margin-bottom:10px">${this._esc(r.description)}</div>` : ''}
+          ${stats ? `<div class="rc-stats" style="margin-bottom:6px">${stats}</div>` : ''}
+          ${this._detailBodyHtml(r)}
+        </div>`;
+      // inside a dialog the body already has padding
+      wrap.querySelectorAll('.rc-cols, .rc-notes').forEach((el) => {
+        el.style.padding = el.classList.contains('rc-notes') ? '12px 14px' : '4px 0 0';
+        el.style.margin = el.classList.contains('rc-notes') ? '14px 0 0' : '';
+      });
+
       const dlg = document.createElement('ha-dialog');
-      dlg.open = true;
+      dlg.setAttribute('open', '');
+      dlg.setAttribute('heading', r.title);
+      dlg.setAttribute('hideactions', '');
       dlg.appendChild(wrap);
-      dlg.addEventListener('closed', ()=> dlg.remove());
+
+      const edit = document.createElement('ha-button');
+      edit.setAttribute('slot', 'secondaryAction');
+      edit.innerText = 'Edit';
+      const done = document.createElement('ha-button');
+      done.setAttribute('slot', 'primaryAction');
+      done.innerText = 'Close';
+      dlg.removeAttribute('hideactions');
+      dlg.appendChild(edit);
+      dlg.appendChild(done);
       document.body.appendChild(dlg);
-      wrap.querySelector('.rc-cancel')?.addEventListener('click', ()=> dlg.close());
-      wrap.querySelector('.rc-save')?.addEventListener('click', async ()=>{
-        const title = wrap.querySelector('.rc-title').value.trim();
-        const description = wrap.querySelector('.rc-desc').value.trim();
-        const ingredients = wrap.querySelector('.rc-ings').value.split('\n').map(s=>s.trim()).filter(Boolean);
-        const instructions = wrap.querySelector('.rc-steps').value.split('\n').map(s=>s.trim()).filter(Boolean);
-        const notes = wrap.querySelector('.rc-notes').value.trim();
+
+      const close = () => { try { dlg.close(); } catch (e) { /* not upgraded */ } dlg.remove(); };
+      dlg.addEventListener('closed', () => dlg.remove());
+      done.addEventListener('click', close);
+      edit.addEventListener('click', () => { close(); this._openForm(r); });
+
+      this._wireDetailBody(r, wrap);
+    }
+
+    _statsHtml(r) {
+      const stats = [];
+      if (r.prep_time) stats.push(`<span class="rc-stat"><ha-icon icon="${ICONS.clock}"></ha-icon>Prep <b>${this._fmtTime(r.prep_time)}</b></span>`);
+      if (r.cook_time) stats.push(`<span class="rc-stat"><ha-icon icon="mdi:stove"></ha-icon>Cook <b>${this._fmtTime(r.cook_time)}</b></span>`);
+      if (r.total_time) stats.push(`<span class="rc-stat"><ha-icon icon="mdi:timer-outline"></ha-icon>Total <b>${this._fmtTime(r.total_time)}</b></span>`);
+      if (r.ingredients && r.ingredients.length) stats.push(`<span class="rc-stat"><ha-icon icon="${ICONS.basket}"></ha-icon><b>${r.ingredients.length}</b> ingredients</span>`);
+      return stats.join('');
+    }
+
+    // ---------- add / edit ----------
+    _openForm(r) {
+      const colour = (r && r.color) || PALETTE[0];
+      const wrap = document.createElement('div');
+      wrap.innerHTML = `${STYLE}
+        <div class="rc-field">
+          <label class="rc-label">Title</label>
+          <input class="rc-input rc-f-title" value="${this._esc(r?.title)}" placeholder="Anzac Biscuits">
+        </div>
+        <div class="rc-field">
+          <label class="rc-label">Description</label>
+          <input class="rc-input rc-f-desc" value="${this._esc(r?.description)}" placeholder="Chewy, golden, keeps for a fortnight">
+        </div>
+        <div class="rc-field">
+          <label class="rc-label">Ingredients <span class="rc-hint">one per line</span></label>
+          <textarea class="rc-textarea rc-f-ings" placeholder="1 cup rolled oats&#10;125 g butter">${this._esc((r?.ingredients || []).join('\n'))}</textarea>
+        </div>
+        <div class="rc-field">
+          <label class="rc-label">Method <span class="rc-hint">one step per line &mdash; times are picked up automatically</span></label>
+          <textarea class="rc-textarea rc-f-steps" placeholder="Prep for 15 minutes: heat the oven to 160C.&#10;Bake for 20 minutes until golden.">${this._esc((r?.instructions || []).join('\n'))}</textarea>
+        </div>
+        <div class="rc-field">
+          <label class="rc-label">Notes</label>
+          <textarea class="rc-textarea rc-f-notes" style="min-height:60px" placeholder="Leave on the tray 5 minutes or they break.">${this._esc(r?.notes)}</textarea>
+        </div>
+        <div class="rc-field">
+          <label class="rc-label">Colour</label>
+          <div class="rc-swatches">
+            ${PALETTE.map((c) => `<span class="rc-swatch" data-colour="${c}" style="background:${c}" aria-selected="${c === colour}" role="button" tabindex="0"></span>`).join('')}
+          </div>
+        </div>`;
+
+      const dlg = document.createElement('ha-dialog');
+      dlg.setAttribute('open', '');
+      dlg.setAttribute('heading', r ? 'Edit recipe' : 'Add recipe');
+      dlg.appendChild(wrap);
+
+      const save = document.createElement('ha-button');
+      save.setAttribute('slot', 'primaryAction');
+      save.innerText = r ? 'Save' : 'Add';
+      const cancel = document.createElement('ha-button');
+      cancel.setAttribute('slot', 'secondaryAction');
+      cancel.innerText = 'Cancel';
+      dlg.appendChild(save);
+      dlg.appendChild(cancel);
+      document.body.appendChild(dlg);
+
+      const close = () => { try { dlg.close(); } catch (e) { /* not upgraded */ } dlg.remove(); };
+      dlg.addEventListener('closed', () => dlg.remove());
+      cancel.addEventListener('click', close);
+
+      let chosen = colour;
+      wrap.querySelectorAll('.rc-swatch').forEach((s) => s.addEventListener('click', () => {
+        chosen = s.getAttribute('data-colour');
+        wrap.querySelectorAll('.rc-swatch').forEach((o) => o.setAttribute('aria-selected', String(o === s)));
+      }));
+
+      setTimeout(() => wrap.querySelector('.rc-f-title')?.focus(), 50);
+
+      save.addEventListener('click', async () => {
+        const lines = (sel) => wrap.querySelector(sel).value.split('\n').map((s) => s.trim()).filter(Boolean);
+        const title = wrap.querySelector('.rc-f-title').value.trim();
+        if (!title) { this._toast('Give the recipe a title.'); return; }
+        const payload = {
+          title,
+          description: wrap.querySelector('.rc-f-desc').value.trim(),
+          ingredients: lines('.rc-f-ings'),
+          instructions: lines('.rc-f-steps'),
+          notes: wrap.querySelector('.rc-f-notes').value.trim(),
+          color: chosen,
+        };
+        const target = this._target(r);
+        if (target) payload.config_entry_id = target;
         try {
           if (r) {
-            const payload = {
-              recipe_id: r.id,
-              title, description, ingredients, instructions, notes
-            };
-            const target = (this._entryFilter && this._entryFilter!=='all') ? this._entryFilter : (this._config.entry_id || null);
-            if (target) payload.config_entry_id = target;
+            payload.recipe_id = r.id;
             await this._hass.callService('recipecards', 'update_recipe', payload);
           } else {
-            const payload = { title, description, ingredients, instructions, notes };
-            const target = (this._entryFilter && this._entryFilter!=='all') ? this._entryFilter : (this._config.entry_id || null);
-            if (target) payload.config_entry_id = target;
             await this._hass.callService('recipecards', 'add_recipe', payload);
           }
           await this._load();
-          dlg.close();
+          close();
         } catch (e) {
-          console.error('Recipe save failed', e);
+          console.error('RecipeCards: save failed', e);
           this._toast(`Could not save recipe: ${(e && (e.message || e.error)) || e}`);
         }
       });
     }
 
-    async _delete(r){
-      if (!confirm('Delete this recipe?')) return;
+    async _delete(r) {
+      if (!confirm(`Delete "${r.title}"?`)) return;
       try {
         const payload = { recipe_id: r.id };
-        const target = (this._entryFilter && this._entryFilter!=='all') ? this._entryFilter : (this._config.entry_id || null);
+        const target = this._target(r);
         if (target) payload.config_entry_id = target;
         await this._hass.callService('recipecards', 'delete_recipe', payload);
-        this._view='collection';
-        this._load();
-      } catch(e){
-        console.error('Delete failed', e);
+        try { localStorage.removeItem('rc-ticks-' + r.id); } catch (e) { /* ignore */ }
+        if (this._selected === r.id) { this._selected = null; this._view = this._config.view || 'collection'; }
+        await this._load();
+      } catch (e) {
+        console.error('RecipeCards: delete failed', e);
         this._toast(`Could not delete recipe: ${(e && (e.message || e.error)) || e}`);
       }
     }
@@ -362,12 +733,15 @@
       customElements.define('recipecards-card', RecipeCardsCard);
     }
     window.customCards = window.customCards || [];
-    window.customCards.push({
-      type: 'recipecards-card',
-      name: 'RecipeCards Card',
-      description: 'Browse, add, edit, and delete recipes',
-    });
+    if (!window.customCards.some((c) => c.type === 'recipecards-card')) {
+      window.customCards.push({
+        type: 'recipecards-card',
+        name: 'Recipe Cards',
+        description: 'Browse, cook from, and manage your recipes',
+        preview: false,
+      });
+    }
   } catch (error) {
-    console.error('RecipeCards: Error registering custom element:', error);
+    console.error('RecipeCards: could not register the custom element', error);
   }
 })();

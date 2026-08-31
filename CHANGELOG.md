@@ -1,3 +1,33 @@
+## 1.9.2
+
+Card redesign. The backend was working from 1.9.0; this is about it being usable.
+
+### Changed
+
+- **Opening a recipe no longer replaces the card.** It opens in a dialog, so there is
+  nothing to navigate "back" from - close it, press Escape, or click outside and the
+  grid is exactly where you left it. The old inline detail view with its "Back" button
+  is kept only for cards deliberately pinned to one recipe (`view: detail` or `recipe_id`),
+  where the back button is now hidden because there is nowhere to go back to.
+- **Wrapped in a real `ha-card`.** The card previously rendered loose `div`s straight into
+  the dashboard, so it never picked up card background, elevation, radius or theming.
+- **Whole tile is clickable**, keyboard focusable, and has a hover state. The three
+  competing Open / Edit / Delete buttons on every tile are replaced by a single overflow
+  menu, so Delete is no longer one misclick from Open.
+- **Tiles show what you need to choose a recipe**: total time, ingredient count and step
+  count, all of which the integration already knew and never displayed.
+- **Section tabs use section names**, not `Set 01ab23`. The old filter dropdown showed
+  truncated config entry IDs.
+- **Search box** appears once you have more than three recipes.
+- **Ingredients and method steps tick off as you cook**, and the ticks persist in browser
+  storage so a re-render or a page reload does not lose your place.
+- Recipe colour is used as a real accent (tile band, notes rule) rather than a thin strip
+  in one view.
+- Add/edit form has proper labels, hints, placeholders and a colour swatch picker instead
+  of bare inputs.
+- `mwc-button` replaced with `ha-button` throughout; `mwc-*` is deprecated in the HA frontend.
+- Card picker entry renamed to "Recipe Cards" with a clearer description.
+
 ## 1.9.1
 
 - **Fixed: the Lovelace card was loaded twice when more than one section exists.**
