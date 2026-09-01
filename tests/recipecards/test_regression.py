@@ -263,3 +263,98 @@ async def test_card_is_registered_once_when_entries_race(hass: HomeAssistant) ->
     assert len(calls) == 1, f"static path registered {len(calls)} times"
     assert len(urls) == 1, f"card registered {len(urls)} times: {urls}"
     assert urls[0].startswith("/recipecards/"), urls
+
+
+async def test_non_admin_cannot_add_recipe_via_service(
+    hass: HomeAssistant, hass_read_only_user
+) -> None:
+    """Read-only household members must not be able to change recipes."""
+    import pytest as _pytest
+    from homeassistant.core import Context
+    from homeassistant.exceptions import Unauthorized
+
+    entry = await _setup(hass)
+    with _pytest.raises(Unauthorized):
+        await hass.services.async_call(
+            DOMAIN, "add_recipe",
+            {"config_entry_id": entry.entry_id, "title": "Sneaky"},
+            blocking=True,
+            context=Context(user_id=hass_read_only_user.id),
+        )
+    await hass.async_block_till_done()
+    assert hass.states.get(SENSOR).state == "0"
+
+
+async def test_non_admin_cannot_delete_recipe_via_service(
+    hass: HomeAssistant, hass_read_only_user
+) -> None:
+    import pytest as _pytest
+    from homeassistant.core import Context
+    from homeassistant.exceptions import Unauthorized
+
+    entry = await _setup(hass)
+    await hass.services.async_call(
+        DOMAIN, "add_recipe", {"config_entry_id": entry.entry_id, "title": "Keep me"},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+    recipe_id = hass.states.get(SENSOR).attributes["recipes"][0]["id"]
+
+    with _pytest.raises(Unauthorized):
+        await hass.services.async_call(
+            DOMAIN, "delete_recipe",
+            {"config_entry_id": entry.entry_id, "recipe_id": recipe_id},
+            blocking=True,
+            context=Context(user_id=hass_read_only_user.id),
+        )
+    await hass.async_block_till_done()
+    assert hass.states.get(SENSOR).state == "1", "recipe was deleted by a non-admin"
+
+
+async def test_automations_may_still_write(hass: HomeAssistant) -> None:
+    """A call with no user in its context is an automation, not a person."""
+    entry = await _setup(hass)
+    await hass.services.async_call(
+        DOMAIN, "add_recipe", {"config_entry_id": entry.entry_id, "title": "From automation"},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+    assert hass.states.get(SENSOR).state == "1"
+
+
+async def test_websocket_write_requires_admin(
+    hass: HomeAssistant, hass_ws_client, hass_read_only_access_token
+) -> None:
+    """The WebSocket write commands must refuse non-admins too."""
+    await _setup(hass)
+    client = await hass_ws_client(hass, hass_read_only_access_token)
+
+    await client.send_json({
+        "id": 1, "type": "recipecards/recipe_add", "recipe": {"title": "Sneaky"},
+    })
+    msg = await client.receive_json()
+    assert msg["success"] is False
+    assert msg["error"]["code"] == "unauthorized"
+
+    await client.send_json({"id": 2, "type": "recipecards/recipe_delete", "recipe_id": "x"})
+    msg = await client.receive_json()
+    assert msg["success"] is False
+    assert msg["error"]["code"] == "unauthorized"
+
+
+async def test_non_admin_can_still_read_recipes(
+    hass: HomeAssistant, hass_ws_client, hass_read_only_access_token
+) -> None:
+    """Read-only users keep full read access, which is the whole point."""
+    entry = await _setup(hass)
+    await hass.services.async_call(
+        DOMAIN, "add_recipe", {"config_entry_id": entry.entry_id, "title": "Pavlova"},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+
+    client = await hass_ws_client(hass, hass_read_only_access_token)
+    await client.send_json({"id": 1, "type": "recipecards/recipe_list"})
+    msg = await client.receive_json()
+    assert msg["success"] is True
+    assert [r["title"] for r in msg["result"]] == ["Pavlova"]

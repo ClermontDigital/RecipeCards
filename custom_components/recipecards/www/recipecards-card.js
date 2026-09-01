@@ -280,6 +280,12 @@
 
     getCardSize() { return this._view === 'detail' ? 12 : 6; }
 
+    // Only administrators may add, edit or delete. This hides the controls; the
+    // integration refuses the underlying service and WebSocket calls regardless.
+    _canEdit() {
+      return Boolean(this._hass && this._hass.user && this._hass.user.is_admin);
+    }
+
     // ---------- data ----------
     async _load() {
       const cfg = this._config || {};
@@ -413,7 +419,7 @@
               <ha-icon icon="${ICONS.search}"></ha-icon>
               <input type="search" placeholder="Search" value="${this._esc(this._query)}" aria-label="Search recipes">
             </label>` : ''}
-          <button class="rc-btn rc-add" type="button">Add recipe</button>
+          ${this._canEdit() ? '<button class="rc-btn rc-add" type="button">Add recipe</button>' : ''}
         </div>`;
     }
 
@@ -433,9 +439,9 @@
         <div class="rc-tile" data-id="${this._esc(r.id)}" tabindex="0" role="button"
              aria-label="Open ${this._esc(r.title)}">
           <div class="rc-band" style="background:${this._esc(colour)}"></div>
-          <button class="rc-more" data-id="${this._esc(r.id)}" aria-label="More actions for ${this._esc(r.title)}">
+          ${this._canEdit() ? `<button class="rc-more" data-id="${this._esc(r.id)}" aria-label="More actions for ${this._esc(r.title)}">
             <ha-icon icon="${ICONS.more}"></ha-icon>
-          </button>
+          </button>` : ''}
           <div class="rc-body">
             <div class="rc-title">${this._esc(r.title)}</div>
             ${r.description ? `<div class="rc-desc">${this._esc(r.description)}</div>` : ''}
@@ -452,7 +458,7 @@
       return `<div class="rc-empty">
         <ha-icon icon="mdi:chef-hat"></ha-icon>
         <p>${filtered ? 'No recipes match that search.' : 'No recipes yet.'}</p>
-        ${filtered ? '' : '<button class="rc-btn rc-add" type="button">Add your first recipe</button>'}
+        ${filtered || !this._canEdit() ? '' : '<button class="rc-btn rc-add" type="button">Add your first recipe</button>'}
       </div>`;
     }
 
@@ -665,11 +671,13 @@
         ${stats ? `<div class="rc-stats" style="margin-bottom:6px">${stats}</div>` : ''}
         ${this._detailBodyHtml(r)}`;
 
-      const m = this._modal(r.title, body, [
-        { label: 'Delete', style: 'danger', onClick: (close) => { close(); this._delete(r); } },
-        { label: 'Edit', style: 'ghost', onClick: (close) => { close(); this._openForm(r); } },
-        { label: 'Done', onClick: (close) => close() },
-      ]);
+      const buttons = [];
+      if (this._canEdit()) {
+        buttons.push({ label: 'Delete', style: 'danger', onClick: (close) => { close(); this._delete(r); } });
+        buttons.push({ label: 'Edit', style: 'ghost', onClick: (close) => { close(); this._openForm(r); } });
+      }
+      buttons.push({ label: 'Done', onClick: (close) => close() });
+      const m = this._modal(r.title, body, buttons);
       m.body.querySelectorAll('.rc-cols').forEach((el) => { el.style.padding = '4px 0 0'; });
       m.body.querySelectorAll('.rc-notes').forEach((el) => { el.style.margin = '14px 0 0'; });
       this._wireDetailBody(r, m.body);
@@ -686,6 +694,7 @@
 
     // ---------- add / edit ----------
     _openForm(r) {
+      if (!this._canEdit()) { this._toast('Only an administrator can change recipes.'); return; }
       const colour = (r && r.color) || PALETTE[0];
       const body = `
         <div class="rc-field">
@@ -768,6 +777,7 @@
     }
 
     async _delete(r) {
+      if (!this._canEdit()) { this._toast('Only an administrator can change recipes.'); return; }
       if (!confirm(`Delete "${r.title}"?`)) return;
       try {
         const payload = { recipe_id: r.id };
@@ -784,7 +794,7 @@
     }
   }
 
-  const RC_VERSION = '1.9.6';
+  const RC_VERSION = '1.9.7';
   try {
     if (!customElements.get('recipecards-card')) {
       customElements.define('recipecards-card', RecipeCardsCard);

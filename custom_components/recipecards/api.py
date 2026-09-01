@@ -94,6 +94,7 @@ async def async_get_recipe(hass: HomeAssistant, connection: websocket_api.Active
                 return
     connection.send_error(msg["id"], "not_found", "Recipe not found")
 
+@websocket_api.require_admin
 @websocket_api.async_response
 @websocket_api.websocket_command({
     vol.Required("type"): RECIPE_ADD_TYPE,
@@ -128,6 +129,7 @@ async def async_add_recipe(hass: HomeAssistant, connection: websocket_api.Active
     data["_entry_id"] = target_entry_id
     connection.send_result(msg["id"], data)
 
+@websocket_api.require_admin
 @websocket_api.async_response
 @websocket_api.websocket_command({
     vol.Required("type"): RECIPE_UPDATE_TYPE,
@@ -154,6 +156,7 @@ async def async_update_recipe(hass: HomeAssistant, connection: websocket_api.Act
             return
     connection.send_error(msg["id"], "not_found", "Recipe not found")
 
+@websocket_api.require_admin
 @websocket_api.async_response
 @websocket_api.websocket_command({
     vol.Required("type"): RECIPE_DELETE_TYPE,

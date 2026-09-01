@@ -1,3 +1,14 @@
+## 1.9.7
+
+- **Only administrators can add, edit or delete recipes.** Everyone else keeps full read
+  access, which lets you share the dashboard with the household without handing out edit
+  rights. This is enforced in three places: the WebSocket write commands use
+  `require_admin`, the `add_recipe`, `update_recipe` and `delete_recipe` services refuse a
+  call whose context belongs to a non-admin, and the card hides the Add button, the
+  per-tile overflow menu and the Edit and Delete buttons in the recipe dialog.
+- Automations and scripts can still write. A service call with no user in its context is
+  not a person, so it is allowed through and your automations keep working.
+
 ## 1.9.6
 
 - **Fixed "Configuration error" on storage-mode dashboards.** The card was loaded only

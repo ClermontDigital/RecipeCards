@@ -4,6 +4,7 @@ import voluptuous as vol
 import uuid
 from typing import Optional
 from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import Unauthorized
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_registry as er
 from .const import DOMAIN
@@ -162,8 +163,30 @@ def cleanup_recipe_entities(hass: HomeAssistant, entry_id: str, recipe_id: str) 
         # Best-effort cleanup
         pass
 
+async def _async_require_admin(call: ServiceCall) -> None:
+    """Only administrators may change recipes.
+
+    A call with no user in its context comes from an automation or script rather
+    than a person, so it is allowed through. Anything triggered by a signed-in
+    non-admin is refused, which is what stops a read-only household member from
+    editing or deleting recipes from the card.
+    """
+    user_id = call.context.user_id
+    if user_id is None:
+        return
+    user = await call.hass.auth.async_get_user(user_id)
+    if user is None or not user.is_admin:
+        _LOGGER.warning(
+            "Recipe Cards: refused %s for non-admin user %s",
+            call.service,
+            getattr(user, "name", user_id),
+        )
+        raise Unauthorized(context=call.context)
+
+
 async def async_add_recipe(call: ServiceCall) -> None:
     """Handle add recipe service call."""
+    await _async_require_admin(call)
     config_entry_id = call.data.get(ATTR_CONFIG_ENTRY_ID)
     storage, coordinator, entry_id = _get_storage_and_coordinator(call.hass, config_entry_id)
     
@@ -198,6 +221,7 @@ async def async_add_recipe(call: ServiceCall) -> None:
 
 async def async_update_recipe(call: ServiceCall) -> None:
     """Handle update recipe service call."""
+    await _async_require_admin(call)
     config_entry_id = call.data.get(ATTR_CONFIG_ENTRY_ID)
     storage, coordinator, entry_id = _get_storage_and_coordinator(call.hass, config_entry_id)
 
@@ -234,6 +258,7 @@ async def async_update_recipe(call: ServiceCall) -> None:
 
 async def async_delete_recipe(call: ServiceCall) -> None:
     """Handle delete recipe service call."""
+    await _async_require_admin(call)
     config_entry_id = call.data.get(ATTR_CONFIG_ENTRY_ID)
     storage, coordinator, entry_id = _get_storage_and_coordinator(call.hass, config_entry_id)
 
