@@ -10,7 +10,7 @@
         "ingredients": {"name": "Ingredients", "description": "List of ingredients."},
         "notes": {"name": "Notes", "description": "Optional cooking notes."},
         "instructions": {"name": "Instructions", "description": "List of steps."},
-        "color": {"name": "Color", "description": "Recipe header color (#RRGGBB or RGB)."}
+        "color": {"name": "Colour", "description": "Recipe header colour (#RRGGBB or RGB)."}
       }
     },
     "update_recipe": {
@@ -24,7 +24,7 @@
         "ingredients": {"name": "Ingredients", "description": "List of ingredients."},
         "notes": {"name": "Notes", "description": "Optional cooking notes."},
         "instructions": {"name": "Instructions", "description": "List of steps."},
-        "color": {"name": "Color", "description": "Recipe header color (#RRGGBB or RGB)."}
+        "color": {"name": "Colour", "description": "Recipe header colour (#RRGGBB or RGB)."}
       }
     },
     "delete_recipe": {

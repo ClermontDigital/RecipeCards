@@ -1,3 +1,10 @@
+## 1.9.4
+
+- Australian spelling throughout the documentation and every user-visible label.
+  The service field is now shown as "Colour" in Developer Tools and the card. The
+  underlying API key stays `color`, so existing automations and scripts are unaffected.
+- Removed em dashes and en dashes from the documentation, labels and commit history.
+
 ## 1.9.3
 
 Fixes found by actually looking at the rendered card.
@@ -50,7 +57,7 @@ Card redesign. The backend was working from 1.9.0; this is about it being usable
 
 - **Fixed: the Lovelace card was loaded twice when more than one section exists.**
   Config entries are set up concurrently, and the `frontend_registered` guard was
-  claimed only after several `await`s — so every entry passed it. The loser of the
+  claimed only after several `await`s - so every entry passed it. The loser of the
   static-path race hit "path already registered", fell back to copying the card into
   `/config/www`, and the browser ended up importing the card from two different URLs:
 
@@ -64,10 +71,10 @@ Card redesign. The backend was working from 1.9.0; this is about it being usable
 
 ## 1.9.0
 
-Repair release. Recipe creation could not succeed at all in 1.8.x — five independent defects sat on
+Repair release. Recipe creation could not succeed at all in 1.8.x - five independent defects sat on
 the same code path, and each failure was swallowed before it reached the log.
 
-### Fixed — each of these alone prevented the integration from working
+### Fixed - each of these alone prevented the integration from working
 
 - **Services rejected every call.** `prep_time`, `cook_time`, `total_time` and `max_time` were
   declared as `vol.Optional(..., default=None)` piped through `vol.Coerce(int)`. Voluptuous validates
@@ -81,13 +88,13 @@ the same code path, and each failure was swallowed before it reached the log.
   coroutine, so `connection.send_result` was never reached and the card's `callWS` promise hung
   forever instead of rejecting.
 - **Options flow crashed on entry.** `config_flow.py` used `cv.text` eight times with `cv` never
-  imported — and `cv.text` does not exist. Settings → Configure → Add new recipe raised `NameError`.
+  imported - and `cv.text` does not exist. Settings → Configure → Add new recipe raised `NameError`.
   Now imports `config_validation` and uses `cv.string`.
 - **Card was served stale.** `www/recipecards-card.js` had not been rebuilt since 1.7.x. The
   `recipecards-card/` TypeScript tree cannot compile (it imports npm packages that do not exist and
   the repo has no bundler) and is now documented as legacy; the shipped JS is the source of truth.
 
-### Fixed — data loss and correctness
+### Fixed - data loss and correctness
 
 - **Half-written records.** `async_add_recipe` saved to disk *before* parsing times and notified the
   coordinator *after*, so a parse failure persisted the recipe while leaving the sensor stale. Times
@@ -97,16 +104,16 @@ the same code path, and each failure was swallowed before it reached the log.
   unit from the match: "Prep for 10 minutes", "Bake 25 min", "Roast for 1 hour 30 min" all work.
   Explicitly supplied times are no longer overwritten by parsed ones.
 - **`update_recipe` wiped fields.** Injected `None` defaults were merged over the stored record,
-  clearing image and times on every edit — including a title-only change.
+  clearing image and times on every edit - including a title-only change.
 - **`recipe_search` crashed** comparing `None > int` when a recipe had no total time.
 - **Sensor lagged writes by 10 seconds.** Storage used the debounced `async_request_refresh`; a
   delete straight after an add left the sensor stale. Now refreshes immediately.
 - **Storage was never removed** with its config entry. Added `async_remove_entry`, so deleting a
   section deletes its store instead of orphaning it.
-- **Services were never unregistered** on unload — the `api_registered` bookkeeping key meant
+- **Services were never unregistered** on unload - the `api_registered` bookkeeping key meant
   `hass.data[DOMAIN]` was never empty.
 
-### Fixed — frontend
+### Fixed - frontend
 
 - Card accepts a bare `type: custom:recipecards-card` (as the docs have always shown) and provides
   `getStubConfig`, so adding it from the card picker works.
@@ -121,7 +128,7 @@ the same code path, and each failure was swallowed before it reached the log.
   the dead `lovelace.resources.async_get_registry` import removed. Minimum supported HA is 2024.7.
 - Manifest declares `http` as a dependency and `frontend`/`lovelace` as after-dependencies.
 - All blocking file I/O moved off the event loop.
-- Bare `except: pass` blocks replaced with real logging — five errors were firing on every startup
+- Bare `except: pass` blocks replaced with real logging - five errors were firing on every startup
   with nothing written to the log.
 - `services.yaml` now declares the time and image fields the schema has always accepted.
 - Test suite rewritten against a real Home Assistant instance (30 tests, all passing). The previous

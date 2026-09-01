@@ -1,7 +1,7 @@
 {
   "domain": "recipecards",
   "name": "Recipe Cards",
-  "version": "1.9.3",
+  "version": "1.9.4",
   "documentation": "https://github.com/ClermontDigital/RecipeCards",
   "requirements": [],
   "dependencies": [

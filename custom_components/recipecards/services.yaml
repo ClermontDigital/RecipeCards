@@ -41,8 +41,8 @@ add_recipe:
       selector:
         object:
     color:
-      name: Color
-      description: Color for the recipe card (hex format)
+      name: Colour
+      description: Colour for the recipe card (hex format)
       required: false
       default: "#FFD700"
       selector:
@@ -133,8 +133,8 @@ update_recipe:
       selector:
         object:
     color:
-      name: Color
-      description: Color for the recipe card (hex format)
+      name: Colour
+      description: Colour for the recipe card (hex format)
       required: false
       selector:
         color_rgb:

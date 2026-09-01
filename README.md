@@ -2,18 +2,18 @@
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![HACS Badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/custom-components/hacs)
-[![Version](https://img.shields.io/badge/version-1.9.3-green.svg)](https://github.com/ClermontDigital/RecipeCards)
+[![Version](https://img.shields.io/badge/version-1.9.4-green.svg)](https://github.com/ClermontDigital/RecipeCards)
 
 Retro-style recipe card management for Home Assistant. Store, browse, and display recipes in a classic 80s-inspired card interface with flip animations and persistent storage.
 
 ## Features
 
 - 📝 **Recipe Storage** - Persistent storage for recipes with title, description, ingredients, notes, and instructions
-- 🎨 **Retro UI** - 80s-inspired card design with flip animations and color customization
+- 🎨 **Retro UI** - 80s-inspired card design with flip animations and colour customisation
 - 🔄 **WebSocket API** - Real-time CRUD operations for recipe management
 - 📱 **Lovelace Card** - Custom card component for displaying recipes with tab navigation
 - 🏷️ **Recipe Index** - Tab bar interface to browse and switch between multiple recipes
-- 🎯 **Color Customization** - Change card title area colors to match your theme
+- 🎯 **Colour Customisation** - Change card title area colours to match your theme
 - 🚀 **HACS Ready** - Easy installation and updates via HACS
 
 ## Quick Setup
@@ -30,7 +30,7 @@ Retro-style recipe card management for Home Assistant. Store, browse, and displa
 
 ### Lovelace Card Auto-Loading
 The bundled buildless card is served from `/recipecards/recipecards-card.js` and loaded into the
-frontend automatically — you do **not** need to add a Lovelace resource on storage dashboards. A
+frontend automatically - you do **not** need to add a Lovelace resource on storage dashboards. A
 version parameter is appended (e.g. `/recipecards/recipecards-card.js?v=1.9.0`) to bust browser
 caches after an upgrade.
 
@@ -71,8 +71,8 @@ lovelace:
 ## Usage
 
 ### Entities Created
-- `sensor.recipe_cards` (per entry) – Shows total number of stored recipes with recipe data in attributes
-- `sensor.recipe_<title>` (per recipe) – A sensor entity representing a single recipe (prefix `recipe_`). Attributes include `title`, `description`, `ingredients`, `instructions`, `notes`, and `color`.
+- `sensor.recipe_cards` (per entry) - Shows total number of stored recipes with recipe data in attributes
+- `sensor.recipe_<title>` (per recipe) - A sensor entity representing a single recipe (prefix `recipe_`). Attributes include `title`, `description`, `ingredients`, `instructions`, `notes`, and `color`.
 
 ### Easy Recipe Management
 
@@ -114,11 +114,11 @@ data:
 ```
 
 > **Note:** `config_entry_id` is optional when you have a single section. With **multiple**
-> sections it is not auto-detected in any meaningful sense — the first configured section wins —
+> sections it is not auto-detected in any meaningful sense - the first configured section wins  - 
 > so pass it explicitly whenever more than one section exists.
 
 **Times.** `prep_time`, `cook_time` and `total_time` are optional and given in minutes. If you leave
-them out, they are parsed from your instructions and notes — "Prep for 10 minutes", "Bake for 25
+them out, they are parsed from your instructions and notes - "Prep for 10 minutes", "Bake for 25
 minutes" and "Roast for 1 hour 30 min" are all understood. Anything you pass explicitly is kept as-is.
 
 ### Sections (Groups)
@@ -129,7 +129,7 @@ Each integration entry is a “section” (e.g., Desserts, Mains). Add multiple 
 
 The RecipeCards card now features two modes:
 
-1. **Collection View (Default)**: Browse all recipes as colored tiles with built-in add/edit/delete functionality
+1. **Collection View (Default)**: Browse all recipes as coloured tiles with built-in add/edit/delete functionality
 2. **Detail View**: Classic single-recipe card with flip animation
 
 **Basic Setup (all sections):**
@@ -180,7 +180,7 @@ This renders a horizontal tray of mini cards (“dividers”). Click a card to v
 - **➕ Add Recipes**: Click the + button in collection view
 - **✏️ Edit Recipes**: Click "Edit" on any recipe tile  
 - **🗑️ Delete Recipes**: Click "Delete" on any recipe tile
-- **🎨 Color Coding**: Each recipe has a customizable color header
+- **🎨 Colour Coding**: Each recipe has a customisable colour header
 - **📊 Recipe Info**: See ingredient count and step count at a glance
 - **⌨️ Keyboard Navigation**: Full keyboard accessibility support
 - **📱 Responsive**: Works on desktop and mobile
@@ -209,11 +209,11 @@ view: detail
 ```
 
 **Card Features:**
-- **Collection View**: Grid of colored recipe tiles, built-in add/edit/delete
+- **Collection View**: Grid of coloured recipe tiles, built-in add/edit/delete
 - **Detail View**: Tab navigation and flip animation for instructions  
 - **Responsive Design**: Works on desktop and mobile devices
 - **Loading States**: Shows loading indicators while fetching recipe data
-- **Color Coding**: Each recipe has a customizable header color
+- **Colour Coding**: Each recipe has a customisable header colour
  - **Sections**: When multiple entries exist, the card groups recipes by section title
  - **Entry Filter**: When multiple entries exist, a dropdown filter appears. You can also target a specific entry with `entry_id: <ENTRY_ID>`.
 
@@ -232,7 +232,7 @@ view: detail
 3. **Start Adding Recipes:**
    - Click the **+** button in the collection view
    - Fill in the recipe form and save
-   - Your recipes appear as colored tiles
+   - Your recipes appear as coloured tiles
 
 4. **Manage Recipes:**
    - **View**: Click any recipe tile to see full details
@@ -272,15 +272,15 @@ data:
 
 ### Method 4: Options Flow (Add via Settings)
 From the integration entry row, click Configure. You’ll see a menu:
-- Add new recipe — opens a full recipe form and saves to this section
-- Edit existing recipe — select a recipe, then update it
-- Delete recipe — select a recipe to remove it
-- Rename this section — change the section title
+- Add new recipe - opens a full recipe form and saves to this section
+- Edit existing recipe - select a recipe, then update it
+- Delete recipe - select a recipe to remove it
+- Rename this section - change the section title
 Repeat Add to create multiple recipes under the same section.
 
 ## Upgrading to 1.9.0
 
-1.9.0 is a repair release. If you ran any earlier 1.8.x, recipe creation could not work at all — see
+1.9.0 is a repair release. If you ran any earlier 1.8.x, recipe creation could not work at all - see
 [CHANGELOG.md](CHANGELOG.md) for the full list. After upgrading:
 
 1. Restart Home Assistant.
@@ -288,7 +288,7 @@ Repeat Add to create multiple recipes under the same section.
 3. Add a recipe. It should appear immediately, without a restart.
 
 Recipes written by an earlier version were saved to disk even when the UI showed nothing, so you may
-find existing recipes reappear after the upgrade. Nothing is lost or migrated — the same store file
+find existing recipes reappear after the upgrade. Nothing is lost or migrated - the same store file
 is used.
 
 ## Troubleshooting
@@ -312,7 +312,7 @@ logger:
 ## Development
 
 - Python 3.13+ (Home Assistant 2026.x ships 3.14)
-- The shipped Lovelace card is `custom_components/recipecards/www/recipecards-card.js` — plain,
+- The shipped Lovelace card is `custom_components/recipecards/www/recipecards-card.js` - plain,
   buildless JavaScript, and the **source of truth**. The `recipecards-card/` TypeScript tree is
   legacy and is not currently built or shipped; do not edit it expecting changes to take effect.
 - Follows [semantic versioning](https://semver.org/)
@@ -326,7 +326,7 @@ python3 -m venv venv
 ```
 
 `tests/recipecards/test_regression.py` covers each defect that made 1.8.0 unusable. The WebSocket
-tests deliberately go through `hass_ws_client` rather than calling handlers directly — calling a
+tests deliberately go through `hass_ws_client` rather than calling handlers directly - calling a
 handler directly cannot detect a missing `@websocket_api.async_response`.
 
 ## Contributing
