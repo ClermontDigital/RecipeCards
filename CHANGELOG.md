@@ -1,3 +1,14 @@
+## 1.9.5
+
+- **Recipes are never deleted automatically any more.** `async_remove_entry` deleted a
+  section's store file whenever Home Assistant reported the config entry as removed.
+  Two sets of recipes went missing on a live instance across HACS version upgrades, and
+  while the cause was never reproduced on demand, this was the only code path capable of
+  destroying stored recipes. It is gone. Removing a section now leaves its
+  `.storage/recipecards_<entry_id>.json` behind, which you can delete by hand if you want
+  the space back. An orphaned few-KB file is a much cheaper failure than losing recipes
+  that were typed in by hand.
+
 ## 1.9.4
 
 - Australian spelling throughout the documentation and every user-visible label.

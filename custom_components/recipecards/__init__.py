@@ -181,6 +181,11 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return unload_ok
 
 
-async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Delete this entry's stored recipes when the entry is removed."""
-    await RecipeStorage(hass, entry.entry_id).async_remove()
+# NOTE: deliberately no async_remove_entry.
+#
+# Deleting a section's store on entry removal leaves no way back if the callback
+# ever fires when it should not, and recipes are typed in by hand. Two unexplained
+# losses on this instance were enough to decide that an orphaned few-KB JSON file
+# in .storage is a far cheaper failure than silently destroying someone's recipes.
+# If you remove a section and want its file gone, delete
+# .storage/recipecards_<entry_id>.json by hand.
