@@ -1,3 +1,16 @@
+## 1.9.6
+
+- **Fixed "Configuration error" on storage-mode dashboards.** The card was loaded only
+  through `frontend.add_extra_js_url`, which injects a bare `import()` into the page. On
+  some instances that never defines the element, so the dashboard renders a bare
+  "Configuration error" with no detail and nothing useful in the browser console. The
+  integration now registers a proper Lovelace resource, which is how HACS-installed cards
+  load and what the dashboard editor understands. `add_extra_js_url` remains as a fallback
+  for YAML-mode dashboards, and only one of the two is ever used so the element is never
+  defined twice.
+- The card now logs a version banner to the browser console on load, so you can tell at a
+  glance whether it is actually there.
+
 ## 1.9.5
 
 - **Recipes are never deleted automatically any more.** `async_remove_entry` deleted a

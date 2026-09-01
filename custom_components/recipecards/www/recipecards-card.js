@@ -784,9 +784,14 @@
     }
   }
 
+  const RC_VERSION = '1.9.6';
   try {
     if (!customElements.get('recipecards-card')) {
       customElements.define('recipecards-card', RecipeCardsCard);
+      console.info(
+        `%c RECIPE-CARDS %c v${RC_VERSION} `,
+        'color:#fff;background:#7B4B2A;font-weight:700',
+        'color:#7B4B2A;background:#fff;font-weight:700');
     }
     window.customCards = window.customCards || [];
     if (!window.customCards.some((c) => c.type === 'recipecards-card')) {

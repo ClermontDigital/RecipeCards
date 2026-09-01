@@ -145,14 +145,62 @@ async def _async_setup_frontend(hass: HomeAssistant) -> None:
             hass.data[DOMAIN]["frontend_registered"] = False
             return
 
-    try:
-        frontend.add_extra_js_url(hass, _versioned(url))
-    except Exception:  # noqa: BLE001 - the backend works without the card
-        _LOGGER.warning("Recipe Cards: could not auto-load the card", exc_info=True)
-        hass.data[DOMAIN]["frontend_registered"] = False
-        return
+    # Prefer a real Lovelace resource. That is how HACS-installed cards load, it is
+    # what the dashboard editor understands, and it survives frontend restarts.
+    # add_extra_js_url is only a fallback: it injects a bare import() into the page,
+    # which is easy to miss and gives no diagnostics when it does not fire.
+    if await _async_register_lovelace_resource(hass, _versioned(url)):
+        _LOGGER.debug("Recipe Cards: registered Lovelace resource %s", url)
+    else:
+        try:
+            frontend.add_extra_js_url(hass, _versioned(url))
+        except Exception:  # noqa: BLE001 - the backend works without the card
+            _LOGGER.warning("Recipe Cards: could not auto-load the card", exc_info=True)
+            hass.data[DOMAIN]["frontend_registered"] = False
+            return
 
     _LOGGER.debug("Recipe Cards: card served from %s", url)
+
+
+async def _async_register_lovelace_resource(hass: HomeAssistant, url: str) -> bool:
+    """Add (or refresh) the card in the Lovelace resource registry.
+
+    Returns True when the resource is present afterwards. Storage-mode dashboards
+    only load custom cards that are in this registry, which is why relying on
+    frontend.add_extra_js_url alone left the card undefined and the dashboard
+    showing "Configuration error".
+    """
+    try:
+        from homeassistant.components.lovelace import LOVELACE_DATA
+
+        lovelace_data = hass.data.get(LOVELACE_DATA)
+        if lovelace_data is None:
+            _LOGGER.debug("Recipe Cards: lovelace not set up yet")
+            return False
+
+        resources = lovelace_data.resources
+        if resources is None or not hasattr(resources, "async_create_item"):
+            # YAML-mode resources are read-only; the user adds the URL themselves.
+            _LOGGER.debug("Recipe Cards: lovelace is in YAML mode, add the resource manually")
+            return False
+
+        if hasattr(resources, "async_load") and not resources.loaded:
+            await resources.async_load()
+
+        base = url.split("?")[0]
+        for item in resources.async_items():
+            existing = item.get("url", "") if isinstance(item, dict) else getattr(item, "url", "")
+            if existing.split("?")[0] == base:
+                if existing != url:  # version bump, refresh the cache buster
+                    item_id = item["id"] if isinstance(item, dict) else getattr(item, "id")
+                    await resources.async_update_item(item_id, {"url": url})
+                return True
+
+        await resources.async_create_item({"res_type": "module", "url": url})
+        return True
+    except Exception:  # noqa: BLE001 - never let this stop setup
+        _LOGGER.warning("Recipe Cards: could not register the Lovelace resource", exc_info=True)
+        return False
 
 
 def _copy_card_to_www(hass: HomeAssistant, card_path: Path) -> str | None:
