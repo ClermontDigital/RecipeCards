@@ -11,7 +11,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.helpers.entity import DeviceInfo
 
-from .const import DOMAIN
+from .const import CONF_PER_RECIPE_ENTITIES, DEFAULT_PER_RECIPE_ENTITIES, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -25,8 +25,14 @@ async def async_setup_entry(
     entry_data = hass.data[DOMAIN][config_entry.entry_id]
     coordinator = entry_data["coordinator"]
     
-    # Always expose the collection sensor for backward compatibility
     entities: list[SensorEntity] = [RecipeCardsCollectionSensor(coordinator, config_entry)]
+
+    per_recipe = config_entry.options.get(
+        CONF_PER_RECIPE_ENTITIES, DEFAULT_PER_RECIPE_ENTITIES
+    )
+    if not per_recipe:
+        async_add_entities(entities)
+        return
 
     # Track and add one sensor per recipe so each appears as its own device
     known_ids: set[str] = set()
@@ -84,13 +90,38 @@ class RecipeCardsCollectionSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        """Return additional state attributes."""
-        if self.coordinator.data is None:
-            return {"recipes": []}
-        
+        """Return a lightweight index of the collection.
+
+        Deliberately NOT the full text of every recipe. Home Assistant caps a
+        single attribute at about 16 KB, every browser downloads all attributes
+        on connect, and the recorder writes them on each change. Ingredients,
+        method and notes are served over the WebSocket API instead, which is
+        what the card uses. This keeps a collection of hundreds of recipes to a
+        few KB and still gives automations and templates something to work with.
+        """
+        recipes = self.coordinator.data or []
+        if not recipes:
+            return {"recipes": [], "count": 0, "avg_prep_time": 0}
+
+        index = [
+            {
+                "id": r.id,
+                "title": r.title,
+                "image": r.image,
+                "color": r.color,
+                "prep_time": r.prep_time,
+                "cook_time": r.cook_time,
+                "total_time": r.total_time,
+                "ingredient_count": len(r.ingredients or []),
+                "step_count": len(r.instructions or []),
+            }
+            for r in recipes
+        ]
+        prep = [r.prep_time for r in recipes if r.prep_time]
         return {
-            "recipes": [recipe.to_dict() for recipe in self.coordinator.data],
-            "avg_prep_time": sum(r.prep_time or 0 for r in self.coordinator.data) / len(self.coordinator.data) if self.coordinator.data else 0,
+            "recipes": index,
+            "count": len(recipes),
+            "avg_prep_time": round(sum(prep) / len(prep), 1) if prep else 0,
         }
 
 
@@ -154,14 +185,19 @@ class RecipeSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
+        """Summary only. The full recipe is served over the WebSocket API."""
         recipe = self._find()
-        if recipe:
-            data = recipe.to_dict()
-            data.update({
-                "image": recipe.image,
-                "prep_time": recipe.prep_time,
-                "cook_time": recipe.cook_time,
-                "total_time": recipe.total_time,
-            })
-            return data
-        return {}
+        if not recipe:
+            return {}
+        return {
+            "id": recipe.id,
+            "title": recipe.title,
+            "description": recipe.description,
+            "image": recipe.image,
+            "color": recipe.color,
+            "prep_time": recipe.prep_time,
+            "cook_time": recipe.cook_time,
+            "total_time": recipe.total_time,
+            "ingredient_count": len(recipe.ingredients or []),
+            "step_count": len(recipe.instructions or []),
+        }

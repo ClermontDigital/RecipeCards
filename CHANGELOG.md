@@ -1,3 +1,24 @@
+## 2.0.0
+
+Breaking. Two changes so a large collection does not degrade Home Assistant.
+
+- **The collection sensor no longer embeds every recipe.** It carried the full text of
+  every recipe in its `recipes` attribute. Home Assistant caps a single attribute near
+  16 KB, every browser downloads all attributes on connect, and the recorder writes them
+  on each change. A 36 recipe collection was already at 20 KB, over the cap. The attribute
+  is now a lightweight index: id, title, image, colour, the three times, ingredient count
+  and step count, plus `count` and `avg_prep_time`. Ingredients, method and notes are
+  served over the WebSocket API, which is what the card uses.
+- **One sensor entity per recipe is now off by default.** Every recipe created its own
+  entity carrying a full copy of the recipe. A few hundred recipes meant a few hundred
+  extra entities and hundreds of KB of attributes loaded by every browser session. Turn
+  them back on per section under Configure, Settings. When enabled they now carry a
+  summary rather than the full text.
+
+If you have templates or automations reading ingredients or instructions from
+`sensor.recipe_cards`, they need to move to the WebSocket API or to a per-recipe entity
+with the option switched on.
+
 ## 1.9.9
 
 - **Recipe photos.** The card now shows an image on each tile, as a header in the recipe

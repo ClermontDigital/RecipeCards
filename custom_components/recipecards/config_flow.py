@@ -9,7 +9,7 @@ from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import config_validation as cv
 
-from .const import DOMAIN
+from .const import CONF_PER_RECIPE_ENTITIES, DEFAULT_PER_RECIPE_ENTITIES, DOMAIN
 def _validate_color(value) -> str:
     """Local color validator to avoid cross-module import during config flow.
 
@@ -90,7 +90,38 @@ class RecipeCardsOptionsFlow(config_entries.OptionsFlow):
                 "select_recipe": "Edit existing recipe",
                 "select_recipe_delete": "Delete recipe",
                 "rename_section": "Rename this section",
+                "settings": "Settings",
                 "finish": "Finish",
+            },
+        )
+
+    async def async_step_settings(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        """Per-entry settings."""
+        current = self._config_entry.options.get(
+            CONF_PER_RECIPE_ENTITIES, DEFAULT_PER_RECIPE_ENTITIES
+        )
+        if user_input is not None:
+            options = dict(self._config_entry.options)
+            options[CONF_PER_RECIPE_ENTITIES] = user_input[CONF_PER_RECIPE_ENTITIES]
+            self.hass.config_entries.async_update_entry(
+                self._config_entry, options=options
+            )
+            await self.hass.config_entries.async_reload(self._config_entry.entry_id)
+            return self.async_create_entry(title="", data={})
+
+        schema = vol.Schema({
+            vol.Required(CONF_PER_RECIPE_ENTITIES, default=current): bool,
+        })
+        return self.async_show_form(
+            step_id="settings",
+            data_schema=schema,
+            description_placeholders={
+                "detail": (
+                    "Create one sensor entity per recipe. Off by default: a large "
+                    "collection adds hundreds of entities, each carrying a recipe in "
+                    "its attributes, which every browser downloads on connect. The "
+                    "card does not need them."
+                )
             },
         )
 

@@ -23,6 +23,12 @@ async def _setup(hass: HomeAssistant) -> MockConfigEntry:
     return entry
 
 
+async def _storage_recipes(hass: HomeAssistant, entry) -> list[dict]:
+    """Read the full recipes straight from the entry's storage."""
+    storage = hass.data[DOMAIN][entry.entry_id]["storage"]
+    return [r.to_dict() for r in await storage.async_load_recipes()]
+
+
 async def test_add_recipe_with_minimal_payload(hass: HomeAssistant) -> None:
     """A title-only call must succeed.
 
@@ -68,12 +74,17 @@ async def test_add_recipe_full_payload_persists_and_refreshes(hass: HomeAssistan
 
     state = hass.states.get(SENSOR)
     assert state.state == "1", "sensor did not refresh after the write"
-    recipe = state.attributes["recipes"][0]
-    assert recipe["ingredients"] == ["1 cup flour", "2 eggs"]
-    # times parsed out of the instruction text
-    assert recipe["prep_time"] == 10
-    assert recipe["cook_time"] == 25
-    assert recipe["total_time"] == 35
+    # the sensor carries only a lightweight index now
+    entry_index = state.attributes["recipes"][0]
+    assert entry_index["ingredient_count"] == 2
+    assert entry_index["step_count"] == 2
+    assert entry_index["prep_time"] == 10
+    assert entry_index["cook_time"] == 25
+    assert entry_index["total_time"] == 35
+
+    # the full recipe lives behind the WebSocket API
+    stored = await _storage_recipes(hass, entry)
+    assert stored[0]["ingredients"] == ["1 cup flour", "2 eggs"]
 
 
 async def test_parse_times_is_callable_and_correct() -> None:
@@ -126,10 +137,11 @@ async def test_update_recipe_does_not_wipe_untouched_fields(hass: HomeAssistant)
     )
     await hass.async_block_till_done()
 
-    recipe = hass.states.get(SENSOR).attributes["recipes"][0]
-    assert recipe["title"] == "Anzacs"
-    assert recipe["cook_time"] == 20, "cook_time was wiped by a title-only update"
-    assert recipe["instructions"] == ["Bake for 20 minutes."]
+    index = hass.states.get(SENSOR).attributes["recipes"][0]
+    assert index["title"] == "Anzacs"
+    assert index["cook_time"] == 20, "cook_time was wiped by a title-only update"
+    stored = await _storage_recipes(hass, entry)
+    assert stored[0]["instructions"] == ["Bake for 20 minutes."]
 
 
 async def test_websocket_recipe_list_responds(hass: HomeAssistant, hass_ws_client) -> None:
@@ -463,3 +475,54 @@ async def test_image_survives_a_title_only_update(hass: HomeAssistant) -> None:
     r = hass.states.get(SENSOR).attributes["recipes"][0]
     assert r["title"] == "Pavlova"
     assert r["image"] == "https://example.com/pav.webp"
+
+
+async def test_collection_attributes_stay_small(hass: HomeAssistant) -> None:
+    """The collection sensor must not embed the full text of every recipe.
+
+    Home Assistant caps a single attribute near 16 KB, every browser downloads all
+    attributes on connect, and the recorder writes them on change. A 40 recipe
+    collection previously blew straight past that.
+    """
+    import json as _json
+
+    entry = await _setup(hass)
+    long_step = "Stir the mixture gently for several minutes until it thickens. " * 6
+    for n in range(40):
+        await hass.services.async_call(
+            DOMAIN, "add_recipe",
+            {"config_entry_id": entry.entry_id, "title": f"Recipe {n:02d}",
+             "description": "A fairly wordy description of this dish. " * 4,
+             "ingredients": [f"{i} cups of something" for i in range(12)],
+             "instructions": [long_step for _ in range(8)],
+             "notes": "Some notes that go on a bit. " * 8},
+            blocking=True,
+        )
+    await hass.async_block_till_done()
+
+    attrs = hass.states.get(SENSOR).attributes
+    size = len(_json.dumps(dict(attrs)))
+    assert attrs["count"] == 40
+    assert size < 16384, f"attributes are {size} bytes, over the 16 KB cap"
+    # the index still carries what a tile needs
+    first = attrs["recipes"][0]
+    assert {"id", "title", "image", "total_time", "ingredient_count", "step_count"} <= set(first)
+    # but not the bulk
+    assert "instructions" not in first and "ingredients" not in first
+
+
+async def test_per_recipe_entities_are_off_by_default(hass: HomeAssistant) -> None:
+    """Hundreds of extra entities should not appear just for having recipes."""
+    entry = await _setup(hass)
+    for n in range(5):
+        await hass.services.async_call(
+            DOMAIN, "add_recipe",
+            {"config_entry_id": entry.entry_id, "title": f"Dish {n}"}, blocking=True)
+    await hass.async_block_till_done()
+
+    recipe_entities = [
+        e for e in hass.states.async_entity_ids("sensor")
+        if e.startswith("sensor.") and "recipe" in e and e != SENSOR
+    ]
+    assert recipe_entities == [], f"unexpected per-recipe entities: {recipe_entities}"
+    assert hass.states.get(SENSOR).state == "5"
