@@ -21,17 +21,17 @@ Retro-style recipe card management for Home Assistant. Store, browse, and displa
 **Recipe collection.** Every section in one place, with search and section tabs. Each tile shows
 total time, ingredient count and step count at a glance.
 
-![Recipe collection](docs/images/collection.png)
+![Recipe collection](images/collection.png)
 
 **Opening a recipe.** Ingredients and method sit side by side, and both tick off as you cook so you
 do not lose your place. Ticks are remembered per recipe.
 
-![A recipe open](docs/images/recipe.png)
+![A recipe open](images/recipe.png)
 
 **Adding a recipe.** Ingredients and method are one item per line. Times written into the method,
 such as "Prep for 15 minutes" or "Bake for 20 minutes", are picked up automatically.
 
-![Adding a recipe](docs/images/add-recipe.png)
+![Adding a recipe](images/add-recipe.png)
 
 ## Quick Setup
 
