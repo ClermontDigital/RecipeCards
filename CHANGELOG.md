@@ -1,3 +1,19 @@
+## 1.9.8
+
+- **Serialised all storage writes behind a lock.** Every mutator did read, change,
+  write with awaits in between and no mutex, while the coordinator reloaded the same
+  shared list on every write. Two overlapping writes could each read the same starting
+  list, and the second write would drop the first one's recipe. Reads now go through a
+  path that never touches the shared list, and each mutation holds a lock for the whole
+  read-change-write cycle.
+- Loading now ignores a store file that is not a list, and skips entries that are not
+  objects, instead of raising inside the coordinator and leaving the section unavailable.
+
+Honest note: a recipe went missing from a live instance three times across HACS upgrades,
+and this was the most plausible mechanism, but it was never reproduced on demand. The
+accompanying concurrency tests pass against the previous code as well, so they document
+the invariant rather than prove the fix. If a recipe disappears again, this was not it.
+
 ## 1.9.7
 
 - **Only administrators can add, edit or delete recipes.** Everyone else keeps full read

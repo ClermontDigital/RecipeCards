@@ -358,3 +358,59 @@ async def test_non_admin_can_still_read_recipes(
     msg = await client.receive_json()
     assert msg["success"] is True
     assert [r["title"] for r in msg["result"]] == ["Pavlova"]
+
+
+async def test_concurrent_adds_do_not_lose_recipes(hass: HomeAssistant) -> None:
+    """Overlapping writes must all survive.
+
+    Regression: every mutator did read -> change -> write with awaits in between
+    and no lock, so two adds could both read the same starting list and the second
+    write would silently drop the first one's recipe. A recipe went missing from a
+    live instance exactly this way.
+    """
+    import asyncio
+
+    entry = await _setup(hass)
+    titles = [f"Recipe {n:02d}" for n in range(20)]
+
+    await asyncio.gather(*(
+        hass.services.async_call(
+            DOMAIN, "add_recipe",
+            {"config_entry_id": entry.entry_id, "title": t},
+            blocking=True,
+        )
+        for t in titles
+    ))
+    await hass.async_block_till_done()
+
+    stored = sorted(r["title"] for r in hass.states.get(SENSOR).attributes["recipes"])
+    assert stored == sorted(titles), (
+        f"lost {sorted(set(titles) - set(stored))} of {len(titles)} concurrent adds"
+    )
+
+
+async def test_concurrent_add_and_delete_are_serialised(hass: HomeAssistant) -> None:
+    """A delete running alongside adds must not resurrect or drop anything else."""
+    import asyncio
+
+    entry = await _setup(hass)
+    await hass.services.async_call(
+        DOMAIN, "add_recipe", {"config_entry_id": entry.entry_id, "title": "Doomed"},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+    doomed = hass.states.get(SENSOR).attributes["recipes"][0]["id"]
+
+    await asyncio.gather(
+        hass.services.async_call(
+            DOMAIN, "delete_recipe",
+            {"config_entry_id": entry.entry_id, "recipe_id": doomed}, blocking=True),
+        *(hass.services.async_call(
+            DOMAIN, "add_recipe",
+            {"config_entry_id": entry.entry_id, "title": f"Keeper {n}"}, blocking=True)
+          for n in range(5)),
+    )
+    await hass.async_block_till_done()
+
+    stored = sorted(r["title"] for r in hass.states.get(SENSOR).attributes["recipes"])
+    assert stored == sorted(f"Keeper {n}" for n in range(5)), stored
