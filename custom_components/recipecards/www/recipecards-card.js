@@ -71,6 +71,14 @@
       .rc-tile:hover { transform: translateY(-2px); box-shadow: var(--ha-card-box-shadow, 0 4px 12px rgba(0,0,0,.18)); }
       .rc-tile:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
       .rc-band { height: 6px; flex: none; }
+      .rc-thumb {
+        width: 100%; height: 132px; object-fit: cover; display: block; flex: none;
+        background: var(--secondary-background-color);
+      }
+      .rc-hero {
+        width: 100%; max-height: 300px; object-fit: cover; display: block;
+        border-radius: 10px; margin-bottom: 14px; background: var(--secondary-background-color);
+      }
       .rc-body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
       .rc-title {
         font-size: 1rem; font-weight: 500; line-height: 1.3; color: var(--primary-text-color);
@@ -438,7 +446,11 @@
       return `
         <div class="rc-tile" data-id="${this._esc(r.id)}" tabindex="0" role="button"
              aria-label="Open ${this._esc(r.title)}">
-          <div class="rc-band" style="background:${this._esc(colour)}"></div>
+          ${r.image
+            ? `<img class="rc-thumb" src="${this._esc(r.image)}" alt="" loading="lazy"
+                 onerror="this.remove()">
+               <div class="rc-band" style="background:${this._esc(colour)}"></div>`
+            : `<div class="rc-band" style="background:${this._esc(colour)}"></div>`}
           ${this._canEdit() ? `<button class="rc-more" data-id="${this._esc(r.id)}" aria-label="More actions for ${this._esc(r.title)}">
             <ha-icon icon="${ICONS.more}"></ha-icon>
           </button>` : ''}
@@ -525,6 +537,9 @@
 
       this.innerHTML = `${STYLE}
         <ha-card><div class="rc-wrap">
+          ${r.image
+            ? `<img class="rc-thumb" style="height:200px" src="${this._esc(r.image)}" alt="" onerror="this.remove()">`
+            : ''}
           <div class="rc-band" style="background:${this._esc(r.color || PALETTE[0])};height:8px"></div>
           <div class="rc-detail-head">
             <div class="rc-detail-top">
@@ -666,7 +681,9 @@
     _openRecipe(r) {
       const stats = this._statsHtml(r);
       const body = `
-        <div class="rc-band" style="background:${this._esc(r.color || PALETTE[0])};height:6px;border-radius:3px;margin-bottom:14px"></div>
+        ${r.image
+          ? `<img class="rc-hero" src="${this._esc(r.image)}" alt="" onerror="this.remove()">`
+          : `<div class="rc-band" style="background:${this._esc(r.color || PALETTE[0])};height:6px;border-radius:3px;margin-bottom:14px"></div>`}
         ${r.description ? `<div class="rc-detail-desc" style="margin-bottom:10px">${this._esc(r.description)}</div>` : ''}
         ${stats ? `<div class="rc-stats" style="margin-bottom:6px">${stats}</div>` : ''}
         ${this._detailBodyHtml(r)}`;
@@ -718,6 +735,10 @@
           <textarea class="rc-textarea rc-f-notes" style="min-height:60px" placeholder="Leave on the tray 5 minutes or they break.">${this._esc(r?.notes)}</textarea>
         </div>
         <div class="rc-field">
+          <label class="rc-label">Image <span class="rc-hint">a link to a photo, optional</span></label>
+          <input class="rc-input rc-f-image" value="${this._esc(r?.image)}" placeholder="https://example.com/photo.jpg">
+        </div>
+        <div class="rc-field">
           <label class="rc-label">Colour</label>
           <div class="rc-swatches">
             ${PALETTE.map((c) => `<span class="rc-swatch" data-colour="${c}" style="background:${c}" aria-selected="${c === colour}" role="button" tabindex="0"></span>`).join('')}
@@ -740,6 +761,7 @@
           instructions: lines('.rc-f-steps'),
           notes: q('.rc-f-notes').value.trim(),
           color: chosen,
+          image: q('.rc-f-image').value.trim() || null,
         };
         const target = this._target(r);
         if (target) payload.config_entry_id = target;
@@ -794,7 +816,7 @@
     }
   }
 
-  const RC_VERSION = '1.9.8';
+  const RC_VERSION = '1.9.9';
   try {
     if (!customElements.get('recipecards-card')) {
       customElements.define('recipecards-card', RecipeCardsCard);

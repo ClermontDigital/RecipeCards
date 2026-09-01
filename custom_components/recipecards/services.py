@@ -64,18 +64,26 @@ def validate_text_length(max_length: int):
     return validator
 
 def validate_image(value) -> Optional[str]:
-    """Validate image as base64 string or URL."""
+    """Validate an image reference: an http(s) URL or a data: URI.
+
+    Deliberately does not insist on a .jpg/.png file extension. Most recipe sites
+    serve .webp, or append a resize query string, and the old extension check
+    rejected both - which meant almost any real image URL was refused.
+    """
     if not value:
         return None
-    if isinstance(value, str):
-        # Basic base64 check or URL
-        if value.startswith('data:image/') or (value.startswith('http') and value.endswith(('.png', '.jpg', '.jpeg', '.gif'))):
-            # Limit size for validation (optional, but prevents huge payloads)
-            if len(value) > 1000000:  # ~1MB rough check
-                raise vol.Invalid("Image too large (max 1MB)")
-            return value
-    raise vol.Invalid("Invalid image format (base64 or URL expected)")
-    return value
+    if not isinstance(value, str):
+        raise vol.Invalid("Image must be a URL or a data: URI")
+
+    value = value.strip()
+    if len(value) > 2_000_000:  # ~2 MB, generous for a base64 data URI
+        raise vol.Invalid("Image too large (max about 2 MB)")
+
+    if value.startswith("data:image/"):
+        return value
+    if value.startswith(("http://", "https://")):
+        return value
+    raise vol.Invalid("Image must be an http(s) URL or a data:image/... URI")
 
 _optional_minutes = vol.Any(None, vol.All(vol.Coerce(int), vol.Range(min=0, max=1440)))
 

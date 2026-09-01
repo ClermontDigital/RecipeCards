@@ -1,3 +1,14 @@
+## 1.9.9
+
+- **Recipe photos.** The card now shows an image on each tile, as a header in the recipe
+  dialog, and at the top of a pinned single-recipe card. The add and edit form has an
+  Image field. A photo that fails to load removes itself rather than leaving a broken
+  icon, and the recipe's colour band is used when there is no photo.
+- **Fixed image URLs being rejected.** `validate_image` required the URL to end in
+  `.png`, `.jpg`, `.jpeg` or `.gif`, so `.webp` images and any URL carrying a resize
+  query string were refused. It now accepts any http(s) URL or `data:image/...` URI,
+  with a 2 MB ceiling.
+
 ## 1.9.8
 
 - **Serialised all storage writes behind a lock.** Every mutator did read, change,

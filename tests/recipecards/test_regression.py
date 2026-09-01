@@ -414,3 +414,52 @@ async def test_concurrent_add_and_delete_are_serialised(hass: HomeAssistant) -> 
 
     stored = sorted(r["title"] for r in hass.states.get(SENSOR).attributes["recipes"])
     assert stored == sorted(f"Keeper {n}" for n in range(5)), stored
+
+
+async def test_image_urls_are_accepted(hass: HomeAssistant) -> None:
+    """Real recipe-site image URLs must be accepted.
+
+    Regression: validate_image required the URL to end in .png/.jpg/.jpeg/.gif, so
+    .webp images and any URL carrying a resize query string were refused.
+    """
+    entry = await _setup(hass)
+    urls = [
+        "https://example.com/photo.webp",
+        "https://example.com/photo.jpg?resize=600%2C400&ssl=1",
+        "https://example.com/img/1234",
+        "data:image/png;base64,iVBORw0KGgo=",
+    ]
+    for n, url in enumerate(urls):
+        await hass.services.async_call(
+            DOMAIN, "add_recipe",
+            {"config_entry_id": entry.entry_id, "title": f"Photo {n}", "image": url},
+            blocking=True,
+        )
+    await hass.async_block_till_done()
+
+    stored = {r["title"]: r["image"] for r in hass.states.get(SENSOR).attributes["recipes"]}
+    for n, url in enumerate(urls):
+        assert stored[f"Photo {n}"] == url
+
+
+async def test_image_survives_a_title_only_update(hass: HomeAssistant) -> None:
+    """Editing the title must not drop the photo."""
+    entry = await _setup(hass)
+    await hass.services.async_call(
+        DOMAIN, "add_recipe",
+        {"config_entry_id": entry.entry_id, "title": "Pav",
+         "image": "https://example.com/pav.webp"},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+    rid = hass.states.get(SENSOR).attributes["recipes"][0]["id"]
+
+    await hass.services.async_call(
+        DOMAIN, "update_recipe",
+        {"config_entry_id": entry.entry_id, "recipe_id": rid, "title": "Pavlova"},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+    r = hass.states.get(SENSOR).attributes["recipes"][0]
+    assert r["title"] == "Pavlova"
+    assert r["image"] == "https://example.com/pav.webp"
