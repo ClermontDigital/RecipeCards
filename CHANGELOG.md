@@ -1,3 +1,21 @@
+## 1.9.3
+
+Fixes found by actually looking at the rendered card.
+
+- **The add/edit form had no Save button.** Buttons passed to `ha-dialog` via
+  `slot="primaryAction"` did not render in HA 2026.8, so the form could be opened and
+  filled in but never submitted, and the dialog showed no heading either. Dialogs are now
+  self-contained: own scrim, heading, scrollable body and footer, with Escape,
+  click-outside and a close button all working. Ctrl/Cmd+Enter saves.
+- **The section label collided with the overflow menu.** `.rc-section` and `.rc-more` were
+  both absolutely positioned top-right, so "DESSERTS" rendered underneath the menu button.
+  The section is now a chip in the tile's meta row.
+- **The "Add recipe" button escaped the card** and floated at the bottom-right of the
+  viewport. `ha-button` is no longer used; buttons are plain elements styled from HA theme
+  variables, so their placement is deterministic.
+- No dependency on `ha-dialog`, `ha-button` or `mwc-button` remains. The only Home
+  Assistant element the card still relies on is `ha-icon`.
+
 ## 1.9.2
 
 Card redesign. The backend was working from 1.9.0; this is about it being usable.

@@ -87,9 +87,9 @@
       .rc-meta span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
       .rc-meta ha-icon { --mdc-icon-size: 14px; }
       .rc-section {
-        position: absolute; top: 14px; right: 12px;
-        font-size: .68rem; text-transform: uppercase; letter-spacing: .06em;
-        color: var(--secondary-text-color);
+        display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px;
+        background: var(--secondary-background-color); color: var(--secondary-text-color);
+        font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; font-weight: 600;
       }
       .rc-more {
         position: absolute; top: 8px; right: 4px;
@@ -98,6 +98,21 @@
       }
       .rc-more:hover { background: var(--secondary-background-color); color: var(--primary-text-color); }
       .rc-more ha-icon { --mdc-icon-size: 18px; }
+
+      .rc-btn {
+        flex: none; border: 0; cursor: pointer; font: inherit; font-size: .88rem; font-weight: 500;
+        border-radius: 999px; padding: 8px 18px; white-space: nowrap;
+        background: var(--primary-color); color: var(--text-primary-color, #fff);
+        transition: filter .15s;
+      }
+      .rc-btn:hover { filter: brightness(1.1); }
+      .rc-btn:focus-visible { outline: 2px solid var(--primary-text-color); outline-offset: 2px; }
+      .rc-btn.ghost {
+        background: none; color: var(--primary-color);
+        border: 1px solid var(--divider-color);
+      }
+      .rc-btn.ghost:hover { background: var(--secondary-background-color); }
+      .rc-btn.danger { background: none; color: var(--error-color, #c62828); border: 1px solid var(--divider-color); }
 
       /* ---------- detail ---------- */
       .rc-detail-head { padding: 16px; display: flex; flex-direction: column; gap: 8px; }
@@ -196,6 +211,34 @@
       .rc-swatch { width: 28px; height: 28px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; }
       .rc-swatch[aria-selected="true"] { border-color: var(--primary-text-color); }
       .rc-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+
+      /* self-contained modal - no dependency on ha-dialog being loaded */
+      .rc-scrim {
+        position: fixed; inset: 0; z-index: 9998; background: rgba(0,0,0,.55);
+        display: flex; align-items: center; justify-content: center; padding: 16px;
+      }
+      .rc-modal {
+        background: var(--card-background-color, #fff); color: var(--primary-text-color, #212121);
+        border-radius: 16px; width: min(720px, 100%); max-height: min(86vh, 900px);
+        display: flex; flex-direction: column; overflow: hidden;
+        box-shadow: 0 12px 40px rgba(0,0,0,.4);
+      }
+      .rc-modal-head {
+        display: flex; align-items: center; gap: 10px; padding: 16px 12px 12px 20px;
+        border-bottom: 1px solid var(--divider-color);
+      }
+      .rc-modal-head h2 { margin: 0; flex: 1; font-size: 1.2rem; font-weight: 500; line-height: 1.3; }
+      .rc-close {
+        border: 0; background: none; cursor: pointer; border-radius: 50%; padding: 6px; line-height: 0;
+        color: var(--secondary-text-color);
+      }
+      .rc-close:hover { background: var(--secondary-background-color); color: var(--primary-text-color); }
+      .rc-close ha-icon { --mdc-icon-size: 22px; }
+      .rc-modal-body { overflow-y: auto; padding: 16px 20px 20px; flex: 1; }
+      .rc-modal-foot {
+        display: flex; justify-content: flex-end; gap: 8px; padding: 12px 16px;
+        border-top: 1px solid var(--divider-color); background: var(--secondary-background-color);
+      }
     </style>
   `;
 
@@ -370,7 +413,7 @@
               <ha-icon icon="${ICONS.search}"></ha-icon>
               <input type="search" placeholder="Search" value="${this._esc(this._query)}" aria-label="Search recipes">
             </label>` : ''}
-          <ha-button raised class="rc-add">Add recipe</ha-button>
+          <button class="rc-btn rc-add" type="button">Add recipe</button>
         </div>`;
     }
 
@@ -396,9 +439,11 @@
           <div class="rc-body">
             <div class="rc-title">${this._esc(r.title)}</div>
             ${r.description ? `<div class="rc-desc">${this._esc(r.description)}</div>` : ''}
-            <div class="rc-meta">${this._metaHtml(r)}</div>
+            <div class="rc-meta">
+              ${showSection && r._entry_title ? `<span class="rc-section">${this._esc(r._entry_title)}</span>` : ''}
+              ${this._metaHtml(r)}
+            </div>
           </div>
-          ${showSection && r._entry_title ? `<div class="rc-section">${this._esc(r._entry_title)}</div>` : ''}
         </div>`;
     }
 
@@ -407,7 +452,7 @@
       return `<div class="rc-empty">
         <ha-icon icon="mdi:chef-hat"></ha-icon>
         <p>${filtered ? 'No recipes match that search.' : 'No recipes yet.'}</p>
-        ${filtered ? '' : '<ha-button raised class="rc-add">Add your first recipe</ha-button>'}
+        ${filtered ? '' : '<button class="rc-btn rc-add" type="button">Add your first recipe</button>'}
       </div>`;
     }
 
@@ -571,46 +616,63 @@
       sheet.querySelector('.rc-menu-del').addEventListener('click', () => { close(); this._delete(r); });
     }
 
+    // ---------- modal ----------
+    _modal(heading, bodyHtml, buttons) {
+      document.querySelectorAll('.rc-scrim').forEach((el) => el.remove());
+      const scrim = document.createElement('div');
+      scrim.className = 'rc-scrim';
+      scrim.innerHTML = `${STYLE}
+        <div class="rc-modal" role="dialog" aria-modal="true" aria-label="${this._esc(heading)}">
+          <div class="rc-modal-head">
+            <h2>${this._esc(heading)}</h2>
+            <button class="rc-close" type="button" aria-label="Close"><ha-icon icon="mdi:close"></ha-icon></button>
+          </div>
+          <div class="rc-modal-body">${bodyHtml}</div>
+          <div class="rc-modal-foot"></div>
+        </div>`;
+      document.body.appendChild(scrim);
+      const prevOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+
+      const close = () => {
+        document.body.style.overflow = prevOverflow;
+        document.removeEventListener('keydown', onKey, true);
+        scrim.remove();
+      };
+      const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
+      document.addEventListener('keydown', onKey, true);
+      scrim.addEventListener('mousedown', (e) => { if (e.target === scrim) close(); });
+      scrim.querySelector('.rc-close').addEventListener('click', close);
+
+      const foot = scrim.querySelector('.rc-modal-foot');
+      for (const b of buttons || []) {
+        const el = document.createElement('button');
+        el.type = 'button';
+        el.className = 'rc-btn' + (b.style ? ' ' + b.style : '');
+        el.textContent = b.label;
+        el.addEventListener('click', () => b.onClick(close));
+        foot.appendChild(el);
+      }
+      return { scrim, body: scrim.querySelector('.rc-modal-body'), close };
+    }
+
     // ---------- read a recipe ----------
     _openRecipe(r) {
       const stats = this._statsHtml(r);
-      const wrap = document.createElement('div');
-      wrap.innerHTML = `${STYLE}
-        <div class="rc-dialog-body">
-          <div class="rc-band" style="background:${this._esc(r.color || PALETTE[0])};height:6px;border-radius:3px;margin-bottom:14px"></div>
-          ${r.description ? `<div class="rc-detail-desc" style="margin-bottom:10px">${this._esc(r.description)}</div>` : ''}
-          ${stats ? `<div class="rc-stats" style="margin-bottom:6px">${stats}</div>` : ''}
-          ${this._detailBodyHtml(r)}
-        </div>`;
-      // inside a dialog the body already has padding
-      wrap.querySelectorAll('.rc-cols, .rc-notes').forEach((el) => {
-        el.style.padding = el.classList.contains('rc-notes') ? '12px 14px' : '4px 0 0';
-        el.style.margin = el.classList.contains('rc-notes') ? '14px 0 0' : '';
-      });
+      const body = `
+        <div class="rc-band" style="background:${this._esc(r.color || PALETTE[0])};height:6px;border-radius:3px;margin-bottom:14px"></div>
+        ${r.description ? `<div class="rc-detail-desc" style="margin-bottom:10px">${this._esc(r.description)}</div>` : ''}
+        ${stats ? `<div class="rc-stats" style="margin-bottom:6px">${stats}</div>` : ''}
+        ${this._detailBodyHtml(r)}`;
 
-      const dlg = document.createElement('ha-dialog');
-      dlg.setAttribute('open', '');
-      dlg.setAttribute('heading', r.title);
-      dlg.setAttribute('hideactions', '');
-      dlg.appendChild(wrap);
-
-      const edit = document.createElement('ha-button');
-      edit.setAttribute('slot', 'secondaryAction');
-      edit.innerText = 'Edit';
-      const done = document.createElement('ha-button');
-      done.setAttribute('slot', 'primaryAction');
-      done.innerText = 'Close';
-      dlg.removeAttribute('hideactions');
-      dlg.appendChild(edit);
-      dlg.appendChild(done);
-      document.body.appendChild(dlg);
-
-      const close = () => { try { dlg.close(); } catch (e) { /* not upgraded */ } dlg.remove(); };
-      dlg.addEventListener('closed', () => dlg.remove());
-      done.addEventListener('click', close);
-      edit.addEventListener('click', () => { close(); this._openForm(r); });
-
-      this._wireDetailBody(r, wrap);
+      const m = this._modal(r.title, body, [
+        { label: 'Delete', style: 'danger', onClick: (close) => { close(); this._delete(r); } },
+        { label: 'Edit', style: 'ghost', onClick: (close) => { close(); this._openForm(r); } },
+        { label: 'Done', onClick: (close) => close() },
+      ]);
+      m.body.querySelectorAll('.rc-cols').forEach((el) => { el.style.padding = '4px 0 0'; });
+      m.body.querySelectorAll('.rc-notes').forEach((el) => { el.style.margin = '14px 0 0'; });
+      this._wireDetailBody(r, m.body);
     }
 
     _statsHtml(r) {
@@ -625,8 +687,7 @@
     // ---------- add / edit ----------
     _openForm(r) {
       const colour = (r && r.color) || PALETTE[0];
-      const wrap = document.createElement('div');
-      wrap.innerHTML = `${STYLE}
+      const body = `
         <div class="rc-field">
           <label class="rc-label">Title</label>
           <input class="rc-input rc-f-title" value="${this._esc(r?.title)}" placeholder="Anzac Biscuits">
@@ -654,47 +715,26 @@
           </div>
         </div>`;
 
-      const dlg = document.createElement('ha-dialog');
-      dlg.setAttribute('open', '');
-      dlg.setAttribute('heading', r ? 'Edit recipe' : 'Add recipe');
-      dlg.appendChild(wrap);
-
-      const save = document.createElement('ha-button');
-      save.setAttribute('slot', 'primaryAction');
-      save.innerText = r ? 'Save' : 'Add';
-      const cancel = document.createElement('ha-button');
-      cancel.setAttribute('slot', 'secondaryAction');
-      cancel.innerText = 'Cancel';
-      dlg.appendChild(save);
-      dlg.appendChild(cancel);
-      document.body.appendChild(dlg);
-
-      const close = () => { try { dlg.close(); } catch (e) { /* not upgraded */ } dlg.remove(); };
-      dlg.addEventListener('closed', () => dlg.remove());
-      cancel.addEventListener('click', close);
-
       let chosen = colour;
-      wrap.querySelectorAll('.rc-swatch').forEach((s) => s.addEventListener('click', () => {
-        chosen = s.getAttribute('data-colour');
-        wrap.querySelectorAll('.rc-swatch').forEach((o) => o.setAttribute('aria-selected', String(o === s)));
-      }));
+      let saving = false;
 
-      setTimeout(() => wrap.querySelector('.rc-f-title')?.focus(), 50);
-
-      save.addEventListener('click', async () => {
-        const lines = (sel) => wrap.querySelector(sel).value.split('\n').map((s) => s.trim()).filter(Boolean);
-        const title = wrap.querySelector('.rc-f-title').value.trim();
-        if (!title) { this._toast('Give the recipe a title.'); return; }
+      const save = async (close) => {
+        if (saving) return;
+        const q = (sel) => m.body.querySelector(sel);
+        const lines = (sel) => q(sel).value.split('\n').map((x) => x.trim()).filter(Boolean);
+        const title = q('.rc-f-title').value.trim();
+        if (!title) { this._toast('Give the recipe a title.'); q('.rc-f-title').focus(); return; }
         const payload = {
           title,
-          description: wrap.querySelector('.rc-f-desc').value.trim(),
+          description: q('.rc-f-desc').value.trim(),
           ingredients: lines('.rc-f-ings'),
           instructions: lines('.rc-f-steps'),
-          notes: wrap.querySelector('.rc-f-notes').value.trim(),
+          notes: q('.rc-f-notes').value.trim(),
           color: chosen,
         };
         const target = this._target(r);
         if (target) payload.config_entry_id = target;
+        saving = true;
         try {
           if (r) {
             payload.recipe_id = r.id;
@@ -705,10 +745,26 @@
           await this._load();
           close();
         } catch (e) {
+          saving = false;
           console.error('RecipeCards: save failed', e);
           this._toast(`Could not save recipe: ${(e && (e.message || e.error)) || e}`);
         }
+      };
+
+      const m = this._modal(r ? 'Edit recipe' : 'Add recipe', body, [
+        { label: 'Cancel', style: 'ghost', onClick: (close) => close() },
+        { label: r ? 'Save changes' : 'Add recipe', onClick: save },
+      ]);
+
+      m.body.querySelectorAll('.rc-swatch').forEach((sw) => sw.addEventListener('click', () => {
+        chosen = sw.getAttribute('data-colour');
+        m.body.querySelectorAll('.rc-swatch').forEach((o) => o.setAttribute('aria-selected', String(o === sw)));
+      }));
+      // Ctrl/Cmd+Enter saves
+      m.body.addEventListener('keydown', (e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); save(m.close); }
       });
+      setTimeout(() => m.body.querySelector('.rc-f-title')?.focus(), 60);
     }
 
     async _delete(r) {
