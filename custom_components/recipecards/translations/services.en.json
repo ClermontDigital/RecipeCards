@@ -10,7 +10,8 @@
         "ingredients": {"name": "Ingredients", "description": "List of ingredients."},
         "notes": {"name": "Notes", "description": "Optional cooking notes."},
         "instructions": {"name": "Instructions", "description": "List of steps."},
-        "color": {"name": "Colour", "description": "Recipe header colour (#RRGGBB or RGB)."}
+        "color": {"name": "Colour", "description": "Recipe header colour (#RRGGBB or RGB)."},
+        "tags": {"name": "Tags", "description": "Tags for this recipe. A recipe can carry as many as you like."}
       }
     },
     "update_recipe": {
@@ -24,7 +25,8 @@
         "ingredients": {"name": "Ingredients", "description": "List of ingredients."},
         "notes": {"name": "Notes", "description": "Optional cooking notes."},
         "instructions": {"name": "Instructions", "description": "List of steps."},
-        "color": {"name": "Colour", "description": "Recipe header colour (#RRGGBB or RGB)."}
+        "color": {"name": "Colour", "description": "Recipe header colour (#RRGGBB or RGB)."},
+        "tags": {"name": "Tags", "description": "Tags for this recipe. A recipe can carry as many as you like."}
       }
     },
     "delete_recipe": {

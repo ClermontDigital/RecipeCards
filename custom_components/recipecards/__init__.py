@@ -78,10 +78,42 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await async_register_services(hass)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
+    await _async_seed_tags_from_section(hass, entry, storage)
     await _async_migrate_entity_ids(hass, entry, storage)
     await _async_setup_frontend(hass)
 
     return True
+
+
+async def _async_seed_tags_from_section(
+    hass: HomeAssistant, entry: ConfigEntry, storage: RecipeStorage
+) -> None:
+    """Give every untagged recipe its section name as a starting tag.
+
+    Sections are config entries, which means a recipe can only ever live in one of
+    them. Tags are the better model: a slow cooker brisket is reasonably both a main
+    and a slow cook. This seeds tags from what the section already implies so the
+    tag view is populated from day one, and only ever touches recipes that have no
+    tags at all, so it will not undo anyone's own tagging. Nothing is moved or
+    deleted; the per-section stores stay exactly as they are.
+    """
+    try:
+        recipes = await storage.async_load_recipes()
+        section = (entry.title or "").strip()
+        if not section:
+            return
+        untagged = [r for r in recipes if not r.tags]
+        if not untagged:
+            return
+        for recipe in untagged:
+            recipe.tags = [section]
+            await storage.async_update_recipe(recipe.id, recipe)
+        _LOGGER.info(
+            "Recipe Cards: tagged %d recipes in '%s' with the section name",
+            len(untagged), section,
+        )
+    except Exception:  # noqa: BLE001 - seeding must never block setup
+        _LOGGER.exception("Recipe Cards: could not seed tags from the section name")
 
 
 async def _async_migrate_entity_ids(

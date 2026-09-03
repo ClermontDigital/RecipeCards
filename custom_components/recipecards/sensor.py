@@ -114,13 +114,16 @@ class RecipeCardsCollectionSensor(CoordinatorEntity, SensorEntity):
                 "total_time": r.total_time,
                 "ingredient_count": len(r.ingredients or []),
                 "step_count": len(r.instructions or []),
+                "tags": r.tags or [],
             }
             for r in recipes
         ]
         prep = [r.prep_time for r in recipes if r.prep_time]
+        all_tags = sorted({t for r in recipes for t in (r.tags or [])})
         return {
             "recipes": index,
             "count": len(recipes),
+            "tags": all_tags,
             "avg_prep_time": round(sum(prep) / len(prep), 1) if prep else 0,
         }
 
@@ -200,4 +203,5 @@ class RecipeSensor(CoordinatorEntity, SensorEntity):
             "total_time": recipe.total_time,
             "ingredient_count": len(recipe.ingredients or []),
             "step_count": len(recipe.instructions or []),
+            "tags": recipe.tags or [],
         }

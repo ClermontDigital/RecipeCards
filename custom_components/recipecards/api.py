@@ -186,6 +186,7 @@ async def async_delete_recipe(hass: HomeAssistant, connection: websocket_api.Act
     vol.Required("type"): RECIPE_SEARCH_TYPE,
     vol.Optional("query", default=""): str,
     vol.Optional("max_time"): vol.Any(None, vol.All(vol.Coerce(int), vol.Range(min=0, max=1440))),
+    vol.Optional("tag"): str,
 })
 async def async_search_recipes(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     """Search recipes by query and optional max total time."""
@@ -195,6 +196,7 @@ async def async_search_recipes(hass: HomeAssistant, connection: websocket_api.Ac
     
     query = msg.get("query", "").lower()
     max_time = msg.get("max_time")
+    tag = (msg.get("tag") or "").strip().lower()
     
     storages = _all_storages(hass)
     if not storages:
@@ -220,6 +222,10 @@ async def async_search_recipes(hass: HomeAssistant, connection: websocket_api.Ac
             if query and query not in data["title"].lower() and query not in (data.get("description", "") or "").lower():
                 continue
             
+            # Filter by tag
+            if tag and tag not in [str(t).lower() for t in (data.get("tags") or [])]:
+                continue
+
             # Filter by max_time
             if max_time is not None and (data.get("total_time") or 0) > max_time:
                 continue

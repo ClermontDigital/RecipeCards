@@ -262,7 +262,8 @@
       this._title = this._config.title || 'Recipes';
       this._view = this._config.view || (this._config.recipe_id ? 'detail' : 'collection');
       this._selected = null;
-      this._entryFilter = this._config.entry_id || 'all';
+      this._entryFilter = this._config.entry_id || null;  // set by config only
+      this._tagFilter = this._config.tag || 'all';
       this._query = '';
       this._render();
     }
@@ -328,25 +329,35 @@
 
     _visible() {
       let list = this._recipes || [];
-      if (this._entryFilter && this._entryFilter !== 'all') {
+      if (this._entryFilter) {
         list = list.filter((r) => r._entry_id === this._entryFilter);
+      }
+      if (this._tagFilter && this._tagFilter !== 'all') {
+        list = list.filter((r) => (r.tags || []).includes(this._tagFilter));
       }
       const q = (this._query || '').trim().toLowerCase();
       if (q) {
         list = list.filter((r) =>
           (r.title || '').toLowerCase().includes(q) ||
           (r.description || '').toLowerCase().includes(q) ||
+          (r.tags || []).some((t) => String(t).toLowerCase().includes(q)) ||
           (r.ingredients || []).some((i) => String(i).toLowerCase().includes(q)));
       }
       return list;
     }
 
-    _sections() {
-      const seen = new Map();
-      for (const r of this._recipes || []) {
-        if (r._entry_id && !seen.has(r._entry_id)) seen.set(r._entry_id, r._entry_title || 'Section');
+    _allTags() {
+      const counts = new Map();
+      const pool = this._entryFilter
+        ? (this._recipes || []).filter((r) => r._entry_id === this._entryFilter)
+        : (this._recipes || []);
+      for (const r of pool) {
+        for (const t of r.tags || []) counts.set(t, (counts.get(t) || 0) + 1);
       }
-      return Array.from(seen, ([id, title]) => ({ id, title }));
+      // most used first, then alphabetical, so the useful tags lead
+      return [...counts.entries()]
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .map(([tag, n]) => ({ tag, n }));
     }
 
     // ---------- tick state (survives re-render and reload) ----------
@@ -432,16 +443,16 @@
     }
 
     _tabsHtml() {
-      const sections = this._sections();
-      if (sections.length < 2 || this._config.entry_id) return '';
-      const tab = (id, label) =>
-        `<button class="rc-tab" role="tab" data-entry="${this._esc(id)}" aria-selected="${this._entryFilter === id}">${this._esc(label)}</button>`;
+      const tags = this._allTags();
+      if (tags.length < 2) return '';
+      const tab = (value, label) =>
+        `<button class="rc-tab" role="tab" data-tag="${this._esc(value)}" aria-selected="${this._tagFilter === value}">${this._esc(label)}</button>`;
       return `<div class="rc-tabs" role="tablist">
-        ${tab('all', 'All')}${sections.map((s) => tab(s.id, s.title)).join('')}
+        ${tab('all', 'All')}${tags.map((t) => tab(t.tag, `${t.tag} ${t.n}`)).join('')}
       </div>`;
     }
 
-    _tileHtml(r, showSection) {
+    _tileHtml(r) {
       const colour = r.color || PALETTE[0];
       return `
         <div class="rc-tile" data-id="${this._esc(r.id)}" tabindex="0" role="button"
@@ -458,7 +469,7 @@
             <div class="rc-title">${this._esc(r.title)}</div>
             ${r.description ? `<div class="rc-desc">${this._esc(r.description)}</div>` : ''}
             <div class="rc-meta">
-              ${showSection && r._entry_title ? `<span class="rc-section">${this._esc(r._entry_title)}</span>` : ''}
+              ${(r.tags || []).slice(0, 2).map((t) => `<span class="rc-section">${this._esc(t)}</span>`).join('')}
               ${this._metaHtml(r)}
             </div>
           </div>
@@ -476,12 +487,11 @@
 
     _renderCollection() {
       const list = this._visible();
-      const showSection = !this._config.entry_id && this._entryFilter === 'all' && this._sections().length > 1;
       this.innerHTML = `${STYLE}
         <ha-card><div class="rc-wrap">
           ${this._headerHtml(list.length)}
           ${this._tabsHtml()}
-          ${list.length ? `<div class="rc-grid">${list.map((r) => this._tileHtml(r, showSection)).join('')}</div>` : this._emptyHtml()}
+          ${list.length ? `<div class="rc-grid">${list.map((r) => this._tileHtml(r)).join('')}</div>` : this._emptyHtml()}
         </div></ha-card>`;
       this._wireCommon();
       this._wireTiles();
@@ -581,7 +591,7 @@
     _wireCommon() {
       this.querySelectorAll('.rc-add').forEach((b) => b.addEventListener('click', () => this._openForm()));
       this.querySelectorAll('.rc-tab').forEach((b) => b.addEventListener('click', () => {
-        this._entryFilter = b.getAttribute('data-entry');
+        this._tagFilter = b.getAttribute('data-tag');
         this._render();
       }));
       const search = this.querySelector('.rc-search input');
@@ -686,6 +696,9 @@
           : `<div class="rc-band" style="background:${this._esc(r.color || PALETTE[0])};height:6px;border-radius:3px;margin-bottom:14px"></div>`}
         ${r.description ? `<div class="rc-detail-desc" style="margin-bottom:10px">${this._esc(r.description)}</div>` : ''}
         ${stats ? `<div class="rc-stats" style="margin-bottom:6px">${stats}</div>` : ''}
+        ${(r.tags || []).length ? `<div class="rc-meta" style="margin-bottom:10px">${
+            (r.tags || []).map((t) => `<span class="rc-section">${this._esc(t)}</span>`).join('')
+          }</div>` : ''}
         ${this._detailBodyHtml(r)}`;
 
       const buttons = [];
@@ -735,6 +748,10 @@
           <textarea class="rc-textarea rc-f-notes" style="min-height:60px" placeholder="Leave on the tray 5 minutes or they break.">${this._esc(r?.notes)}</textarea>
         </div>
         <div class="rc-field">
+          <label class="rc-label">Tags <span class="rc-hint">comma separated, a recipe can have several</span></label>
+          <input class="rc-input rc-f-tags" value="${this._esc((r?.tags || []).join(', '))}" placeholder="Mains, Slow Cooked, Keto">
+        </div>
+        <div class="rc-field">
           <label class="rc-label">Image <span class="rc-hint">a link to a photo, optional</span></label>
           <input class="rc-input rc-f-image" value="${this._esc(r?.image)}" placeholder="https://example.com/photo.jpg">
         </div>
@@ -762,6 +779,7 @@
           notes: q('.rc-f-notes').value.trim(),
           color: chosen,
           image: q('.rc-f-image').value.trim() || null,
+          tags: q('.rc-f-tags').value.split(',').map((x) => x.trim()).filter(Boolean),
         };
         const target = this._target(r);
         if (target) payload.config_entry_id = target;
@@ -816,7 +834,7 @@
     }
   }
 
-  const RC_VERSION = '2.0.0';
+  const RC_VERSION = '2.1.0';
   try {
     if (!customElements.get('recipecards-card')) {
       customElements.define('recipecards-card', RecipeCardsCard);

@@ -526,3 +526,91 @@ async def test_per_recipe_entities_are_off_by_default(hass: HomeAssistant) -> No
     ]
     assert recipe_entities == [], f"unexpected per-recipe entities: {recipe_entities}"
     assert hass.states.get(SENSOR).state == "5"
+
+
+async def test_tags_round_trip(hass: HomeAssistant) -> None:
+    """A recipe can carry several tags, which is the point of them."""
+    entry = await _setup(hass)
+    await hass.services.async_call(
+        DOMAIN, "add_recipe",
+        {"config_entry_id": entry.entry_id, "title": "Brisket",
+         "tags": ["Mains", "Slow Cooked", "Keto"]},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+
+    stored = await _storage_recipes(hass, entry)
+    assert stored[0]["tags"] == ["Mains", "Slow Cooked", "Keto"]
+    idx = hass.states.get(SENSOR).attributes["recipes"][0]
+    assert idx["tags"] == ["Mains", "Slow Cooked", "Keto"]
+    assert hass.states.get(SENSOR).attributes["tags"] == ["Keto", "Mains", "Slow Cooked"]
+
+
+async def test_tags_survive_a_title_only_update(hass: HomeAssistant) -> None:
+    entry = await _setup(hass)
+    await hass.services.async_call(
+        DOMAIN, "add_recipe",
+        {"config_entry_id": entry.entry_id, "title": "Pav", "tags": ["Desserts"]},
+        blocking=True)
+    await hass.async_block_till_done()
+    rid = hass.states.get(SENSOR).attributes["recipes"][0]["id"]
+    await hass.services.async_call(
+        DOMAIN, "update_recipe",
+        {"config_entry_id": entry.entry_id, "recipe_id": rid, "title": "Pavlova"},
+        blocking=True)
+    await hass.async_block_till_done()
+    stored = await _storage_recipes(hass, entry)
+    assert stored[0]["title"] == "Pavlova"
+    assert stored[0]["tags"] == ["Desserts"]
+
+
+async def test_existing_recipes_are_seeded_with_the_section_name(hass: HomeAssistant) -> None:
+    """Upgrading should populate tags from the section, without touching anything else."""
+    from custom_components.recipecards.models import Recipe
+    from custom_components.recipecards.storage import RecipeStorage
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    entry = MockConfigEntry(domain=DOMAIN, title="Desserts", data={})
+    entry.add_to_hass(hass)
+    # a recipe written by an older version: no tags at all
+    pre = RecipeStorage(hass, entry.entry_id)
+    await pre.async_add_recipe(Recipe(id="old1", title="Anzac Biscuits"))
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    stored = await _storage_recipes(hass, entry)
+    assert stored[0]["title"] == "Anzac Biscuits"
+    assert stored[0]["tags"] == ["Desserts"]
+
+
+async def test_seeding_does_not_overwrite_existing_tags(hass: HomeAssistant) -> None:
+    from custom_components.recipecards.models import Recipe
+    from custom_components.recipecards.storage import RecipeStorage
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    entry = MockConfigEntry(domain=DOMAIN, title="Desserts", data={})
+    entry.add_to_hass(hass)
+    pre = RecipeStorage(hass, entry.entry_id)
+    await pre.async_add_recipe(Recipe(id="x", title="Pav", tags=["Summer", "Eggs"]))
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    stored = await _storage_recipes(hass, entry)
+    assert stored[0]["tags"] == ["Summer", "Eggs"], "seeding clobbered the user's own tags"
+
+
+async def test_websocket_search_by_tag(hass: HomeAssistant, hass_ws_client) -> None:
+    entry = await _setup(hass)
+    for title, tags in (("Brisket", ["Mains", "Slow Cooked"]), ("Pav", ["Desserts"])):
+        await hass.services.async_call(
+            DOMAIN, "add_recipe",
+            {"config_entry_id": entry.entry_id, "title": title, "tags": tags}, blocking=True)
+    await hass.async_block_till_done()
+
+    client = await hass_ws_client(hass)
+    await client.send_json({"id": 1, "type": "recipecards/recipe_search", "tag": "slow cooked"})
+    msg = await client.receive_json()
+    assert msg["success"] is True
+    assert [r["title"] for r in msg["result"]] == ["Brisket"]

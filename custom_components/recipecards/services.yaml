@@ -77,6 +77,15 @@ add_recipe:
           max: 1440
           unit_of_measurement: min
           mode: box
+    tags:
+      name: Tags
+      description: Tags for this recipe. A recipe can carry as many as you like.
+      required: false
+      selector:
+        select:
+          multiple: true
+          custom_value: true
+          options: []
     image:
       name: Image
       description: Image URL, or a data:image/... base64 string.
@@ -168,6 +177,15 @@ update_recipe:
           max: 1440
           unit_of_measurement: min
           mode: box
+    tags:
+      name: Tags
+      description: Tags for this recipe. A recipe can carry as many as you like.
+      required: false
+      selector:
+        select:
+          multiple: true
+          custom_value: true
+          options: []
     image:
       name: Image
       description: Image URL, or a data:image/... base64 string.

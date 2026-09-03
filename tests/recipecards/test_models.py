@@ -15,6 +15,7 @@ def test_recipe_serialization_round_trip():
         "prep_time": None,
         "cook_time": None,
         "total_time": None,
+        "tags": [],
     }
     recipe = Recipe.from_dict(data)
     assert recipe.id == "abc123"
@@ -32,6 +33,7 @@ def test_from_dict_tolerates_missing_and_null_fields():
     assert recipe.instructions == []
     assert recipe.color == "#FFD700"
     assert recipe.prep_time is None
+    assert recipe.tags == []
 
 
 def test_parse_times_variants():

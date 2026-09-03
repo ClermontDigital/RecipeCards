@@ -1,3 +1,20 @@
+## 2.1.0
+
+- **Tags.** A recipe can now carry as many tags as you like, so a slow cooker brisket can
+  be both a main and a slow cook instead of having to pick one. The card's filter chips are
+  now tags rather than sections, ordered by how often each is used, and search matches tags
+  as well as titles, descriptions and ingredients. The add and edit form takes a comma
+  separated list, and `recipecards.add_recipe` and `update_recipe` accept a `tags` list.
+- `recipecards/recipe_search` takes an optional `tag` to filter on.
+- **Existing recipes are tagged with their section name on upgrade.** This only touches
+  recipes that have no tags at all, so it will not undo your own tagging. Nothing is moved,
+  merged or deleted: sections still work exactly as before and each section keeps its own
+  store. Tags sit on top, and a recipe can belong to several at once.
+
+Sections remain config entries for now. Using a config entry as a category is the reason a
+recipe could only live in one place, and tags are the fix for that. Consolidating the
+per-section stores into one is a separate job and is deliberately not part of this release.
+
 ## 2.0.0
 
 Breaking. Two changes so a large collection does not degrade Home Assistant.

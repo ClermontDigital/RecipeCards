@@ -29,6 +29,7 @@ class Recipe:
     prep_time: Optional[int] = None  # Minutes
     cook_time: Optional[int] = None  # Minutes
     total_time: Optional[int] = None  # Minutes
+    tags: List[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -43,6 +44,7 @@ class Recipe:
             "prep_time": self.prep_time,
             "cook_time": self.cook_time,
             "total_time": self.total_time,
+            "tags": self.tags,
         }
 
     @classmethod
@@ -60,6 +62,7 @@ class Recipe:
             prep_time=data.get("prep_time"),
             cook_time=data.get("cook_time"),
             total_time=data.get("total_time"),
+            tags=[str(t).strip() for t in (data.get("tags") or []) if str(t).strip()],
         )
 
     @classmethod

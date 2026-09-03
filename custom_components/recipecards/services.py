@@ -97,6 +97,7 @@ ADD_RECIPE_SCHEMA = vol.Schema({
     vol.Optional(ATTR_COLOR, default="#FFD700"): validate_color,
     # NOTE: no `default=` on these. Voluptuous validates defaults, so `default=None`
     # piped through Coerce(int) raised on *every* call and rejected the service outright.
+    vol.Optional("tags"): vol.All(cv.ensure_list, [vol.All(cv.string, vol.Length(max=60))]),
     vol.Optional("image"): validate_image,
     vol.Optional("prep_time"): _optional_minutes,  # Up to 24 hours
     vol.Optional("cook_time"): _optional_minutes,
@@ -112,6 +113,7 @@ UPDATE_RECIPE_SCHEMA = vol.Schema({
     vol.Optional(ATTR_NOTES): vol.All(cv.string, vol.Length(max=1000)),
     vol.Optional(ATTR_INSTRUCTIONS): vol.All(cv.ensure_list, [vol.All(cv.string, vol.Length(max=500))]),
     vol.Optional(ATTR_COLOR): validate_color,
+    vol.Optional("tags"): vol.All(cv.ensure_list, [vol.All(cv.string, vol.Length(max=60))]),
     vol.Optional("image"): validate_image,
     vol.Optional("prep_time"): _optional_minutes,
     vol.Optional("cook_time"): _optional_minutes,
@@ -222,6 +224,7 @@ async def async_add_recipe(call: ServiceCall) -> None:
         prep_time=call.data.get("prep_time"),
         cook_time=call.data.get("cook_time"),
         total_time=call.data.get("total_time"),
+        tags=call.data.get("tags", []),
     )
     
     await storage.async_add_recipe(recipe)
