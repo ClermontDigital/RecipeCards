@@ -614,3 +614,150 @@ async def test_websocket_search_by_tag(hass: HomeAssistant, hass_ws_client) -> N
     msg = await client.receive_json()
     assert msg["success"] is True
     assert [r["title"] for r in msg["result"]] == ["Brisket"]
+
+
+def test_parse_duration_handles_both_shapes() -> None:
+    """Mealie stores times as whatever the user typed, so both turn up."""
+    from custom_components.recipecards.importers import parse_duration
+    assert parse_duration("PT1H30M") == 90
+    assert parse_duration("PT45M") == 45
+    assert parse_duration("1 hour 30 minutes") == 90
+    assert parse_duration("30 Minutes") == 30
+    assert parse_duration("2 hrs") == 120
+    assert parse_duration(25) == 25
+    assert parse_duration("") is None
+    assert parse_duration(None) is None
+    assert parse_duration("ages") is None
+    assert parse_duration("3 days") is None  # over the 1440 cap
+
+
+def test_mealie_mapping() -> None:
+    """A realistic Mealie payload maps onto the Recipe Cards shape."""
+    from custom_components.recipecards.importers import mealie_to_recipe
+    payload = {
+        "id": "abc-123",
+        "name": "Anzac Biscuits",
+        "description": "Chewy and golden.",
+        "recipeYield": "24 biscuits",
+        "prepTime": "15 Minutes",
+        "performTime": "20 Minutes",
+        "totalTime": "35 Minutes",
+        "orgURL": "https://example.com/anzac",
+        "recipeIngredient": [
+            {"display": "1 cup rolled oats"},
+            {"quantity": 125, "unit": {"name": "g"}, "food": {"name": "butter"}, "note": "melted"},
+            "2 tbsp golden syrup",
+        ],
+        "recipeInstructions": [{"text": "Heat the oven to 160C."}, {"text": "Bake for 20 minutes."}],
+        "tags": [{"name": "Biscuits"}, {"name": "Baking"}],
+        "recipeCategory": [{"name": "Desserts"}],
+        "notes": [{"title": "Tip", "text": "Leave on the tray 5 minutes."}],
+    }
+    r = mealie_to_recipe(payload, "http://mealie.local:9925/")
+    assert r["title"] == "Anzac Biscuits"
+    assert r["ingredients"] == ["1 cup rolled oats", "125 g butter, melted", "2 tbsp golden syrup"]
+    assert r["instructions"] == ["Heat the oven to 160C.", "Bake for 20 minutes."]
+    assert r["tags"] == ["Biscuits", "Baking", "Desserts"]
+    assert r["prep_time"] == 15 and r["cook_time"] == 20 and r["total_time"] == 35
+    assert r["image"] == "http://mealie.local:9925/api/media/recipes/abc-123/images/original.webp"
+    assert "24 biscuits" in r["notes"] and "example.com/anzac" in r["notes"]
+
+
+def test_mealie_mapping_skips_untitled() -> None:
+    from custom_components.recipecards.importers import mealie_to_recipe
+    assert mealie_to_recipe({"name": ""}, "http://x") is None
+
+
+async def test_import_recipes_service(hass: HomeAssistant) -> None:
+    entry = await _setup(hass)
+    res = await hass.services.async_call(
+        DOMAIN, "import_recipes",
+        {"config_entry_id": entry.entry_id, "recipes": [
+            {"title": "One", "ingredients": ["a"], "tags": ["Imported"]},
+            {"title": "Two", "instructions": ["Bake for 20 minutes."]},
+        ]},
+        blocking=True, return_response=True,
+    )
+    await hass.async_block_till_done()
+    assert res["imported"] == 2
+    assert hass.states.get(SENSOR).state == "2"
+    stored = {r["title"]: r for r in await _storage_recipes(hass, entry)}
+    assert stored["One"]["tags"] == ["Imported"]
+    assert stored["Two"]["cook_time"] == 20  # times still parsed out of the method
+
+
+async def test_import_skips_titles_already_present(hass: HomeAssistant) -> None:
+    entry = await _setup(hass)
+    await hass.services.async_call(
+        DOMAIN, "add_recipe", {"config_entry_id": entry.entry_id, "title": "Pavlova"}, blocking=True)
+    await hass.async_block_till_done()
+
+    res = await hass.services.async_call(
+        DOMAIN, "import_recipes",
+        {"config_entry_id": entry.entry_id,
+         "recipes": [{"title": "Pavlova"}, {"title": "pavlova"}, {"title": "Lamingtons"}]},
+        blocking=True, return_response=True,
+    )
+    await hass.async_block_till_done()
+    assert res["imported"] == 1 and res["skipped"] == 2
+    assert hass.states.get(SENSOR).state == "2"
+
+
+async def test_import_requires_admin(hass: HomeAssistant, hass_read_only_user) -> None:
+    import pytest as _pytest
+    from homeassistant.core import Context
+    from homeassistant.exceptions import Unauthorized
+
+    entry = await _setup(hass)
+    with _pytest.raises(Unauthorized):
+        await hass.services.async_call(
+            DOMAIN, "import_recipes",
+            {"config_entry_id": entry.entry_id, "recipes": [{"title": "Sneaky"}]},
+            blocking=True, context=Context(user_id=hass_read_only_user.id),
+        )
+
+
+async def test_fetch_mealie_paginates_and_maps(hass: HomeAssistant, aioclient_mock) -> None:
+    """Walks every page of the recipe list, then reads each recipe in full."""
+    from custom_components.recipecards.importers import fetch_mealie
+
+    base = "http://mealie.local:9925"
+    page1 = {"items": [{"slug": f"r{n}"} for n in range(100)]}
+    page2 = {"items": [{"slug": "r100"}]}
+    aioclient_mock.get(f"{base}/api/recipes", json=page1, params={"page": "1", "perPage": "100"})
+    aioclient_mock.get(f"{base}/api/recipes", json=page2, params={"page": "2", "perPage": "100"})
+    for n in range(101):
+        aioclient_mock.get(
+            f"{base}/api/recipes/r{n}",
+            json={"id": f"id{n}", "name": f"Recipe {n}", "recipeIngredient": ["a"],
+                  "recipeInstructions": [{"text": "Bake for 20 minutes."}]},
+        )
+
+    out = await fetch_mealie(hass, base, "tok")
+    assert len(out) == 101
+    assert out[0]["title"] == "Recipe 0"
+    assert out[0]["image"].endswith("/api/media/recipes/id0/images/original.webp")
+
+
+async def test_fetch_mealie_reports_a_bad_token(hass: HomeAssistant, aioclient_mock) -> None:
+    import pytest as _pytest
+    from custom_components.recipecards.importers import fetch_mealie
+
+    base = "http://mealie.local:9925"
+    aioclient_mock.get(f"{base}/api/recipes", status=401)
+    with _pytest.raises(ValueError, match="token"):
+        await fetch_mealie(hass, base, "wrong")
+
+
+async def test_fetch_mealie_skips_one_unreadable_recipe(hass: HomeAssistant, aioclient_mock) -> None:
+    """One bad recipe must not abandon the whole import."""
+    from custom_components.recipecards.importers import fetch_mealie
+
+    base = "http://mealie.local:9925"
+    aioclient_mock.get(f"{base}/api/recipes",
+                       json={"items": [{"slug": "good"}, {"slug": "bad"}]})
+    aioclient_mock.get(f"{base}/api/recipes/good", json={"id": "1", "name": "Good"})
+    aioclient_mock.get(f"{base}/api/recipes/bad", status=500)
+
+    out = await fetch_mealie(hass, base, "tok")
+    assert [r["title"] for r in out] == ["Good"]

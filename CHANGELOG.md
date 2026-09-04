@@ -1,3 +1,20 @@
+## 2.2.0
+
+- **Import from Mealie.** `recipecards.import_from_mealie` pulls every recipe off a Mealie
+  server: ingredients, method, prep and cook times, tags, categories, notes, source URL and
+  the image. Give it the server URL and an API token from your Mealie profile. It walks the
+  whole recipe list a page at a time, and one unreadable recipe is logged and skipped rather
+  than abandoning the run.
+- **`recipecards.import_recipes`** takes a list of already-shaped recipes, so a new source is
+  a parser rather than a new integration. Both importers skip titles already present in the
+  target section by default, and both return a summary of what was imported, skipped and
+  failed.
+- Mealie stores times as free text, so durations are parsed from either ISO 8601 (`PT1H30M`)
+  or plain English (`1 hour 30 minutes`, `30 Minutes`). Structured Mealie ingredients are
+  rebuilt into readable lines, preferring Mealie's own `display` value.
+- Storage gained a bulk write, so importing a few hundred recipes is one read, one write and
+  one coordinator refresh rather than a few hundred of each.
+
 ## 2.1.0
 
 - **Tags.** A recipe can now carry as many tags as you like, so a slow cooker brisket can

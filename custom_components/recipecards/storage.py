@@ -83,6 +83,23 @@ class RecipeStorage:
         # Outside the lock: this refreshes the coordinator, which reads back in.
         await self._notify_update()
 
+    async def async_add_recipes(self, recipes: list[Recipe]) -> int:
+        """Add many recipes under one lock and one write.
+
+        An import of a few hundred recipes would otherwise be a few hundred
+        read-modify-write cycles, each triggering a coordinator refresh.
+        """
+        if not recipes:
+            return 0
+        for recipe in recipes:
+            self._apply_parsed_times(recipe)
+        async with self._lock:
+            self._recipes = await self._read_from_disk()
+            self._recipes.extend(recipes)
+            await self._save_locked()
+        await self._notify_update()
+        return len(recipes)
+
     async def async_update_recipe(self, recipe_id: str, updated_recipe: Recipe) -> bool:
         self._apply_parsed_times(updated_recipe)
         found = False

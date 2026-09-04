@@ -210,3 +210,64 @@ delete_recipe:
       required: true
       selector:
         text:
+
+import_recipes:
+  name: Import recipes
+  description: >-
+    Import a list of already-shaped recipes. Each item takes the same fields as
+    add_recipe. Used by the app-specific importers, and handy from a script.
+  fields:
+    config_entry_id:
+      name: Recipe list
+      description: The section to import into.
+      required: false
+      selector:
+        config_entry:
+          integration: recipecards
+    recipes:
+      name: Recipes
+      description: A list of recipe objects.
+      required: true
+      selector:
+        object:
+    skip_existing:
+      name: Skip existing
+      description: Skip anything whose title is already in that section.
+      required: false
+      default: true
+      selector:
+        boolean:
+
+import_from_mealie:
+  name: Import from Mealie
+  description: >-
+    Pull every recipe from a Mealie server. Ingredients, method, times, tags and
+    the image all come across. Create an API token in Mealie under your profile.
+  fields:
+    config_entry_id:
+      name: Recipe list
+      description: The section to import into.
+      required: false
+      selector:
+        config_entry:
+          integration: recipecards
+    url:
+      name: Mealie URL
+      description: The base URL of your Mealie server, for example http://192.168.1.2:9925
+      required: true
+      selector:
+        text:
+    token:
+      name: API token
+      description: A Mealie API token. Mealie, profile, API tokens.
+      required: true
+      selector:
+        text:
+          type: password
+    skip_existing:
+      name: Skip existing
+      description: Skip anything whose title is already in that section.
+      required: false
+      default: true
+      selector:
+        boolean:

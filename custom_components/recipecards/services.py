@@ -3,8 +3,8 @@ import logging
 import voluptuous as vol
 import uuid
 from typing import Optional
-from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.exceptions import Unauthorized
+from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
+from homeassistant.exceptions import HomeAssistantError, Unauthorized
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_registry as er
 from .const import DOMAIN
@@ -15,6 +15,8 @@ _LOGGER = logging.getLogger(__name__)
 SERVICE_ADD_RECIPE = "add_recipe"
 SERVICE_UPDATE_RECIPE = "update_recipe"
 SERVICE_DELETE_RECIPE = "delete_recipe"
+SERVICE_IMPORT_RECIPES = "import_recipes"
+SERVICE_IMPORT_MEALIE = "import_from_mealie"
 
 ATTR_TITLE = "title"
 ATTR_DESCRIPTION = "description"
@@ -124,6 +126,20 @@ DELETE_RECIPE_SCHEMA = vol.Schema({
     vol.Optional(ATTR_CONFIG_ENTRY_ID): cv.string,  # Made optional for auto-detection
     vol.Required(ATTR_RECIPE_ID): cv.string,
 })
+
+IMPORT_RECIPES_SCHEMA = vol.Schema({
+    vol.Optional(ATTR_CONFIG_ENTRY_ID): cv.string,
+    vol.Required("recipes"): vol.All(cv.ensure_list, [dict]),
+    vol.Optional("skip_existing", default=True): cv.boolean,
+})
+
+IMPORT_MEALIE_SCHEMA = vol.Schema({
+    vol.Optional(ATTR_CONFIG_ENTRY_ID): cv.string,
+    vol.Required("url"): cv.string,
+    vol.Required("token"): cv.string,
+    vol.Optional("skip_existing", default=True): cv.boolean,
+})
+
 
 def _get_storage_and_coordinator(hass: HomeAssistant, config_entry_id: Optional[str] = None):
     """Get the storage and coordinator for a specific config entry or auto-detect.
@@ -287,6 +303,85 @@ async def async_delete_recipe(call: ServiceCall) -> None:
         cleanup_recipe_entities(call.hass, entry_id, recipe_id)
     _LOGGER.info("Deleted recipe: %s", recipe_id)
 
+
+async def _async_import(call: ServiceCall, incoming: list[dict]) -> ServiceResponse:
+    """Shared tail for every importer: dedupe, build, write in one go."""
+    storage, coordinator, entry_id = _get_storage_and_coordinator(
+        call.hass, call.data.get(ATTR_CONFIG_ENTRY_ID)
+    )
+    if not storage:
+        raise HomeAssistantError(
+            "No Recipe Cards section found. Add the integration, or pass config_entry_id."
+        )
+
+    existing = {r.title.strip().lower() for r in await storage.async_load_recipes()}
+    skip_existing = call.data.get("skip_existing", True)
+
+    to_add, skipped, failed = [], [], []
+    for item in incoming:
+        title = str(item.get("title") or "").strip()
+        if not title:
+            failed.append("(untitled)")
+            continue
+        if skip_existing and title.lower() in existing:
+            skipped.append(title)
+            continue
+        try:
+            to_add.append(Recipe(id=str(uuid.uuid4()), **{
+                "title": title[:100],
+                "description": str(item.get("description") or "")[:500],
+                "ingredients": [str(x)[:200] for x in (item.get("ingredients") or [])][:60],
+                "instructions": [str(x)[:500] for x in (item.get("instructions") or [])][:40],
+                "notes": str(item.get("notes") or "")[:1000],
+                "color": validate_color(item.get("color")),
+                "image": item.get("image") or None,
+                "prep_time": item.get("prep_time"),
+                "cook_time": item.get("cook_time"),
+                "total_time": item.get("total_time"),
+                "tags": [str(t)[:60] for t in (item.get("tags") or [])][:20],
+            }))
+            existing.add(title.lower())
+        except Exception:  # noqa: BLE001
+            _LOGGER.exception("Recipe Cards: could not build imported recipe '%s'", title)
+            failed.append(title)
+
+    added = await storage.async_add_recipes(to_add)
+    _LOGGER.info(
+        "Recipe Cards: imported %d recipes, skipped %d already present, %d failed",
+        added, len(skipped), len(failed),
+    )
+    return {
+        "imported": added,
+        "skipped": len(skipped),
+        "failed": len(failed),
+        "skipped_titles": skipped[:50],
+        "failed_titles": failed[:50],
+    }
+
+
+async def async_import_recipes(call: ServiceCall) -> ServiceResponse:
+    """Import a list of already-shaped recipe dicts."""
+    await _async_require_admin(call)
+    return await _async_import(call, call.data["recipes"])
+
+
+async def async_import_from_mealie(call: ServiceCall) -> ServiceResponse:
+    """Pull every recipe from a Mealie server and import it."""
+    await _async_require_admin(call)
+    from .importers import fetch_mealie  # local import keeps setup light
+
+    try:
+        incoming = await fetch_mealie(call.hass, call.data["url"], call.data["token"])
+    except ValueError as err:
+        raise HomeAssistantError(str(err)) from err
+    except Exception as err:  # noqa: BLE001
+        raise HomeAssistantError(f"Could not read from Mealie: {err}") from err
+
+    if not incoming:
+        raise HomeAssistantError("Mealie returned no recipes. Check the URL and token.")
+    return await _async_import(call, incoming)
+
+
 async def async_register_services(hass: HomeAssistant) -> None:
     """Register Recipe Cards services."""
     if hass.services.has_service(DOMAIN, SERVICE_ADD_RECIPE):
@@ -303,6 +398,14 @@ async def async_register_services(hass: HomeAssistant) -> None:
     hass.services.async_register(
         DOMAIN, SERVICE_DELETE_RECIPE, async_delete_recipe, schema=DELETE_RECIPE_SCHEMA
     )
+    hass.services.async_register(
+        DOMAIN, SERVICE_IMPORT_RECIPES, async_import_recipes,
+        schema=IMPORT_RECIPES_SCHEMA, supports_response=SupportsResponse.OPTIONAL,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_IMPORT_MEALIE, async_import_from_mealie,
+        schema=IMPORT_MEALIE_SCHEMA, supports_response=SupportsResponse.OPTIONAL,
+    )
 
 async def async_remove_services(hass: HomeAssistant) -> None:
     """Remove Recipe Cards services."""
@@ -313,3 +416,5 @@ async def async_remove_services(hass: HomeAssistant) -> None:
     hass.services.async_remove(DOMAIN, SERVICE_ADD_RECIPE)
     hass.services.async_remove(DOMAIN, SERVICE_UPDATE_RECIPE)
     hass.services.async_remove(DOMAIN, SERVICE_DELETE_RECIPE)
+    hass.services.async_remove(DOMAIN, SERVICE_IMPORT_RECIPES)
+    hass.services.async_remove(DOMAIN, SERVICE_IMPORT_MEALIE)

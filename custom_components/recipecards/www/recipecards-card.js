@@ -834,7 +834,7 @@
     }
   }
 
-  const RC_VERSION = '2.1.0';
+  const RC_VERSION = '2.2.0';
   try {
     if (!customElements.get('recipecards-card')) {
       customElements.define('recipecards-card', RecipeCardsCard);
