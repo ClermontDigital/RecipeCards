@@ -761,3 +761,136 @@ async def test_fetch_mealie_skips_one_unreadable_recipe(hass: HomeAssistant, aio
 
     out = await fetch_mealie(hass, base, "tok")
     assert [r["title"] for r in out] == ["Good"]
+
+
+def _mela_doc(title="Anzac Biscuits", **over):
+    doc = {
+        "id": "example.com/anzac",
+        "title": title,
+        "text": "Chewy and golden.",
+        "yield": "24 biscuits",
+        "prepTime": "15 minutes",
+        "cookTime": "20 minutes",
+        "totalTime": "35 minutes",
+        "categories": ["Baking", "Biscuits"],
+        "ingredients": "- 1 cup rolled oats\n- **125 g** butter\n\n- 2 tbsp golden syrup",
+        "instructions": "1. Heat the oven to 160C.\n2. Bake for 20 minutes.",
+        "notes": "Leave on the tray 5 minutes.",
+        "nutrition": "120 cal each",
+        "link": "https://example.com/anzac",
+        "images": [],
+    }
+    doc.update(over)
+    return doc
+
+
+def test_mela_mapping_strips_markdown_and_splits_lines(tmp_path) -> None:
+    from custom_components.recipecards.importers import mela_to_recipe
+    r = mela_to_recipe(_mela_doc(), None, "/local/recipecards")
+    assert r["title"] == "Anzac Biscuits"
+    assert r["description"] == "Chewy and golden."
+    # bullets, bold markers and numbering all gone, blank lines dropped
+    assert r["ingredients"] == ["1 cup rolled oats", "125 g butter", "2 tbsp golden syrup"]
+    assert r["instructions"] == ["Heat the oven to 160C.", "Bake for 20 minutes."]
+    assert r["tags"] == ["Baking", "Biscuits"]
+    assert r["prep_time"] == 15 and r["cook_time"] == 20 and r["total_time"] == 35
+    assert "24 biscuits" in r["notes"] and "example.com/anzac" in r["notes"]
+    assert "image" not in r
+
+
+def test_mela_writes_images_out_to_disk(tmp_path) -> None:
+    """Base64 photos go to disk, not into the store."""
+    import base64
+    from custom_components.recipecards.importers import mela_to_recipe
+
+    png = base64.b64encode(b"\x89PNG\r\n\x1a\n" + b"0" * 200).decode()
+    r = mela_to_recipe(_mela_doc(images=[png]), str(tmp_path), "/local/recipecards")
+    assert r["image"].startswith("/local/recipecards/")
+    assert r["image"].endswith(".png")
+    written = list(tmp_path.iterdir())
+    assert len(written) == 1 and written[0].stat().st_size > 200
+
+
+def test_mela_skips_heic_photos(tmp_path) -> None:
+    """iOS HEIC would give a broken image in every browser."""
+    import base64
+    from custom_components.recipecards.importers import mela_to_recipe
+
+    heic = base64.b64encode(b"\x00\x00\x00\x20ftypheic" + b"0" * 200).decode()
+    r = mela_to_recipe(_mela_doc(images=[heic]), str(tmp_path), "/local/recipecards")
+    assert "image" not in r
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_parse_mela_single_file(tmp_path) -> None:
+    import json as _json
+    from custom_components.recipecards.importers import parse_mela
+
+    f = tmp_path / "one.melarecipe"
+    f.write_text(_json.dumps(_mela_doc()))
+    out = parse_mela(str(f), None, "/local/recipecards")
+    assert [r["title"] for r in out] == ["Anzac Biscuits"]
+
+
+def test_parse_mela_archive_skips_junk(tmp_path) -> None:
+    """A .melarecipes is a zip; ignore anything that is not a recipe."""
+    import json as _json, zipfile
+    from custom_components.recipecards.importers import parse_mela
+
+    archive = tmp_path / "export.melarecipes"
+    with zipfile.ZipFile(archive, "w") as z:
+        z.writestr("Anzac.melarecipe", _json.dumps(_mela_doc()))
+        z.writestr("Pav.melarecipe", _json.dumps(_mela_doc(title="Pavlova")))
+        z.writestr("broken.melarecipe", "{not json")
+        z.writestr("__MACOSX/._Anzac.melarecipe", "junk")
+        z.writestr("readme.txt", "ignore me")
+    out = parse_mela(str(archive), None, "/local/recipecards")
+    assert sorted(r["title"] for r in out) == ["Anzac Biscuits", "Pavlova"]
+
+
+def test_parse_mela_rejects_a_missing_file(tmp_path) -> None:
+    import pytest as _pytest
+    from custom_components.recipecards.importers import parse_mela
+    with _pytest.raises(ValueError, match="No such file"):
+        parse_mela(str(tmp_path / "nope.melarecipe"), None, "/local")
+
+
+async def test_mela_import_refuses_paths_outside_config(hass: HomeAssistant) -> None:
+    """The importer must not be a way to read arbitrary files off the host."""
+    import pytest as _pytest
+    from homeassistant.exceptions import HomeAssistantError
+
+    entry = await _setup(hass)
+    with _pytest.raises(HomeAssistantError, match="config directory"):
+        await hass.services.async_call(
+            DOMAIN, "import_from_mela",
+            {"config_entry_id": entry.entry_id, "path": "/etc/passwd"},
+            blocking=True, return_response=True,
+        )
+    with _pytest.raises(HomeAssistantError, match="config directory"):
+        await hass.services.async_call(
+            DOMAIN, "import_from_mela",
+            {"config_entry_id": entry.entry_id, "path": "../../../../etc/hosts"},
+            blocking=True, return_response=True,
+        )
+
+
+async def test_mela_import_end_to_end(hass: HomeAssistant) -> None:
+    import json as _json, os
+
+    entry = await _setup(hass)
+    rel = "mela-export.melarecipe"
+    with open(hass.config.path(rel), "w") as handle:
+        _json.dump(_mela_doc(), handle)
+
+    res = await hass.services.async_call(
+        DOMAIN, "import_from_mela",
+        {"config_entry_id": entry.entry_id, "path": rel, "import_images": False},
+        blocking=True, return_response=True,
+    )
+    await hass.async_block_till_done()
+    assert res["imported"] == 1
+    stored = await _storage_recipes(hass, entry)
+    assert stored[0]["title"] == "Anzac Biscuits"
+    assert stored[0]["tags"] == ["Baking", "Biscuits"]
+    os.remove(hass.config.path(rel))

@@ -5,8 +5,14 @@ adding a new source means writing a parser rather than a new integration.
 """
 from __future__ import annotations
 
+import base64
+import binascii
+import hashlib
+import json
 import logging
+import os
 import re
+import zipfile
 from typing import Any, Iterable
 
 from homeassistant.core import HomeAssistant
@@ -187,3 +193,154 @@ async def fetch_mealie(hass: HomeAssistant, base_url: str, token: str) -> list[d
         if mapped:
             recipes.append(mapped)
     return recipes
+
+
+# --------------------------------------------------------------------------
+# Mela (https://mela.recipes/fileformat/)
+#
+# A .melarecipe is a single JSON document. A .melarecipes is a zip of those.
+# Ingredients and instructions are one string each, newline separated, and may
+# carry markdown. Images are base64 strings, which is why they are written out
+# to <config>/www rather than stuffed into the store: a few hundred recipes of
+# embedded photos would be tens of megabytes of JSON.
+# --------------------------------------------------------------------------
+
+_MD_BULLET = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+")
+_MD_HEADING = re.compile(r"^\s*#{1,6}\s*")
+
+IMAGE_MAGIC = (
+    (b"\xff\xd8\xff", "jpg"),
+    (b"\x89PNG\r\n\x1a\n", "png"),
+    (b"GIF8", "gif"),
+)
+
+
+def _strip_markdown(line: str) -> str:
+    line = _MD_HEADING.sub("", line)
+    line = _MD_BULLET.sub("", line)
+    line = re.sub(r"\*\*(.+?)\*\*", r"\1", line)
+    line = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", r"\1", line)
+    return line.strip()
+
+
+def _lines(blob: Any) -> list[str]:
+    out = []
+    for raw in str(blob or "").replace("\r\n", "\n").split("\n"):
+        line = _strip_markdown(raw)
+        if line:
+            out.append(line)
+    return out
+
+
+def _image_kind(data: bytes) -> str | None:
+    for magic, ext in IMAGE_MAGIC:
+        if data.startswith(magic):
+            return ext
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "webp"
+    if data[4:8] == b"ftyp" and b"hei" in data[8:16].lower():
+        return "heic"  # iOS native; browsers will not render it
+    return None
+
+
+def _write_image(blob: str, image_dir: str, url_base: str) -> str | None:
+    """Decode one base64 image to <config>/www and return its /local URL."""
+    payload = str(blob or "")
+    if payload.startswith("data:"):
+        payload = payload.split(",", 1)[-1]
+    try:
+        data = base64.b64decode(payload, validate=False)
+    except (binascii.Error, ValueError):
+        return None
+    if len(data) < 64:
+        return None
+    kind = _image_kind(data)
+    if kind is None:
+        _LOGGER.debug("Recipe Cards: skipping a Mela image of unrecognised type")
+        return None
+    if kind == "heic":
+        _LOGGER.warning(
+            "Recipe Cards: a Mela photo is HEIC, which browsers cannot display. Skipped."
+        )
+        return None
+    name = f"{hashlib.sha1(data).hexdigest()[:16]}.{kind}"
+    os.makedirs(image_dir, exist_ok=True)
+    path = os.path.join(image_dir, name)
+    if not os.path.exists(path):
+        with open(path, "wb") as handle:
+            handle.write(data)
+    return f"{url_base}/{name}"
+
+
+def mela_to_recipe(data: dict, image_dir: str | None, url_base: str) -> dict | None:
+    title = _clean(data.get("title"))
+    if not title:
+        return None
+
+    notes = []
+    if _clean(data.get("yield")):
+        notes.append(f"Serves/makes: {_clean(data['yield'])}")
+    for line in _lines(data.get("notes")):
+        notes.append(line)
+    if _clean(data.get("nutrition")):
+        notes.append(f"Nutrition: {_clean(data['nutrition'])}")
+    if _clean(data.get("link")):
+        notes.append(f"Source: {_clean(data['link'])}")
+
+    recipe: dict[str, Any] = {
+        "title": title[:100],
+        "description": _clean(data.get("text"))[:480],
+        "ingredients": [i[:200] for i in _lines(data.get("ingredients"))][:60],
+        "instructions": [s[:500] for s in _lines(data.get("instructions"))][:40],
+        "notes": "\n\n".join(notes)[:1000],
+        "tags": [t for t in (_clean(c) for c in data.get("categories") or []) if t][:20],
+    }
+    for key, field in (("prepTime", "prep_time"), ("cookTime", "cook_time"), ("totalTime", "total_time")):
+        value = parse_duration(data.get(key))
+        if value:
+            recipe[field] = value
+
+    images = data.get("images") or []
+    if images and image_dir:
+        url = _write_image(images[0], image_dir, url_base)
+        if url:
+            recipe["image"] = url
+    return recipe
+
+
+def parse_mela(path: str, image_dir: str | None, url_base: str) -> list[dict]:
+    """Read a .melarecipe or .melarecipes file. Blocking: call in the executor."""
+    if not os.path.exists(path):
+        raise ValueError(f"No such file: {path}")
+
+    documents: list[dict] = []
+    if zipfile.is_zipfile(path):
+        with zipfile.ZipFile(path) as archive:
+            for name in archive.namelist():
+                if name.endswith("/") or os.path.basename(name).startswith("."):
+                    continue
+                if not name.lower().endswith(".melarecipe"):
+                    continue
+                try:
+                    documents.append(json.loads(archive.read(name).decode("utf-8")))
+                except Exception:  # noqa: BLE001 - one bad entry must not stop the import
+                    _LOGGER.warning("Recipe Cards: could not read '%s' from the Mela archive", name)
+    else:
+        with open(path, "rb") as handle:
+            raw = handle.read().decode("utf-8")
+        parsed = json.loads(raw)
+        documents = parsed if isinstance(parsed, list) else [parsed]
+
+    if not documents:
+        raise ValueError(
+            "No recipes found. Expected a .melarecipe file, or a .melarecipes archive."
+        )
+
+    out = []
+    for doc in documents:
+        if not isinstance(doc, dict):
+            continue
+        mapped = mela_to_recipe(doc, image_dir, url_base)
+        if mapped:
+            out.append(mapped)
+    return out

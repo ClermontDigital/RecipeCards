@@ -2,19 +2,21 @@
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![HACS Badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/custom-components/hacs)
-[![Version](https://img.shields.io/badge/version-2.2.0-green.svg)](https://github.com/ClermontDigital/RecipeCards)
+[![Version](https://img.shields.io/badge/version-2.3.0-green.svg)](https://github.com/ClermontDigital/RecipeCards)
 
 Retro-style recipe card management for Home Assistant. Store, browse, and display recipes in a classic 80s-inspired card interface with flip animations and persistent storage.
 
 ## Features
 
-- 📝 **Recipe Storage** - Persistent storage for recipes with title, description, ingredients, notes, and instructions
-- 🎨 **Retro UI** - 80s-inspired card design with flip animations and colour customisation
-- 🔄 **WebSocket API** - Real-time CRUD operations for recipe management
-- 📱 **Lovelace Card** - Custom card component for displaying recipes with tab navigation
-- 🏷️ **Recipe Index** - Tab bar interface to browse and switch between multiple recipes
-- 🎯 **Colour Customisation** - Change card title area colours to match your theme
-- 🚀 **HACS Ready** - Easy installation and updates via HACS
+- 📝 **Recipe storage** - title, description, ingredients, method, notes, photo and times, stored in Home Assistant itself. No container, no database, no cloud.
+- 🏷️ **Tags** - a recipe can carry as many as you like, so a slow cooker brisket is both a main and a slow cook. The card's filter chips are tags, ordered by how often each is used.
+- 📸 **Photos** - a link on each recipe, shown on the tile and as a header in the dialog.
+- ⏱️ **Times picked up automatically** - write "Bake for 20 minutes" in the method and it becomes the cook time. Anything you set explicitly wins.
+- ✅ **Cook from it** - ingredients and method tick off as you go, remembered per recipe.
+- 📥 **Import from Mealie and Mela** - see [Importing](#importing-from-other-apps).
+- 🔒 **Admin only editing** - everyone else gets full read access, so the dashboard can be shared with the household.
+- 🔄 **WebSocket API** - the card reads recipes over it, so the sensors stay small no matter how many you have.
+- 🚀 **HACS ready**
 
 ## Screenshots
 
@@ -88,6 +90,71 @@ lovelace:
       type: js
 ```
 
+## Importing from other apps
+
+Both importers write into one section, skip anything whose title is already there, and hand
+back a summary of what was imported, skipped and failed. Both are admin only.
+
+### Mealie
+
+Mealie has a proper API, so this is a straight pull. Create an API token in Mealie under your
+profile, then:
+
+```yaml
+action: recipecards.import_from_mealie
+data:
+  url: http://192.168.1.2:9925
+  token: !secret mealie_token
+  config_entry_id: <your section>
+```
+
+Ingredients, method, prep and cook times, tags, categories, notes, the source URL and the
+image all come across. Mealie's structured ingredients are rebuilt into readable lines, and
+its times parse whether they are ISO 8601 or free text like "1 hour 30 minutes".
+
+The image stays a link back to your Mealie server, so Mealie needs to be reachable from
+whatever browser is looking at the card.
+
+### Mela
+
+Mela has no API, so this reads its export file. In Mela, export your recipes, then put the
+`.melarecipe` or `.melarecipes` file somewhere inside your Home Assistant config directory:
+
+```yaml
+action: recipecards.import_from_mela
+data:
+  path: mela-export.melarecipes
+  config_entry_id: <your section>
+```
+
+Categories become tags. Mela stores ingredients and method as single markdown strings, so
+bullets, numbering and bold markers are stripped and each line becomes an item.
+
+Photos are base64 inside the file. They are written out to `config/www/recipecards/` and
+referenced as `/local/recipecards/...`, rather than embedded in the recipe, because a few
+hundred recipes of embedded photos would be tens of megabytes of JSON. Pass
+`import_images: false` to bring across the text only. HEIC photos are skipped with a warning,
+since no browser will render them.
+
+The path must be inside your config directory. The importer will not read files elsewhere on
+the host.
+
+### Anything else
+
+`recipecards.import_recipes` takes a list of recipes in the same shape as `add_recipe`, so a
+new source is a parser rather than a new integration:
+
+```yaml
+action: recipecards.import_recipes
+data:
+  config_entry_id: <your section>
+  recipes:
+    - title: Anzac Biscuits
+      tags: [Baking, Biscuits]
+      ingredients: ["1 cup rolled oats", "125 g butter"]
+      instructions: ["Bake for 20 minutes."]
+```
+
 ## Usage
 
 ### Entities Created
@@ -141,9 +208,19 @@ data:
 them out, they are parsed from your instructions and notes - "Prep for 10 minutes", "Bake for 25
 minutes" and "Roast for 1 hour 30 min" are all understood. Anything you pass explicitly is kept as-is.
 
-### Sections (Groups)
+### Sections and tags
 
-Each integration entry is a “section” (e.g., Desserts, Mains). Add multiple entries to create multiple sections. The Lovelace card groups recipes by section and shows an Add button for each section.
+Each integration entry is a **section** with its own store. Add more entries for more
+sections. Because a section is a config entry, a recipe lives in exactly one of them.
+
+**Tags are the better way to organise.** A recipe can carry as many as you like, and the
+card's filter chips are tags rather than sections, so a slow cooker brisket can sit under
+both Mains and Slow Cooked. On upgrade, existing recipes are tagged with their section name
+so the tag view is populated straight away; that only touches recipes with no tags, so it
+will not undo your own tagging.
+
+Sections are still useful for genuinely separate collections. For organising within one, use
+tags.
 
 ### New Recipe Collection View
 

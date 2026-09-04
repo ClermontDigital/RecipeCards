@@ -17,6 +17,7 @@ SERVICE_UPDATE_RECIPE = "update_recipe"
 SERVICE_DELETE_RECIPE = "delete_recipe"
 SERVICE_IMPORT_RECIPES = "import_recipes"
 SERVICE_IMPORT_MEALIE = "import_from_mealie"
+SERVICE_IMPORT_MELA = "import_from_mela"
 
 ATTR_TITLE = "title"
 ATTR_DESCRIPTION = "description"
@@ -130,6 +131,13 @@ DELETE_RECIPE_SCHEMA = vol.Schema({
 IMPORT_RECIPES_SCHEMA = vol.Schema({
     vol.Optional(ATTR_CONFIG_ENTRY_ID): cv.string,
     vol.Required("recipes"): vol.All(cv.ensure_list, [dict]),
+    vol.Optional("skip_existing", default=True): cv.boolean,
+})
+
+IMPORT_MELA_SCHEMA = vol.Schema({
+    vol.Optional(ATTR_CONFIG_ENTRY_ID): cv.string,
+    vol.Required("path"): cv.string,
+    vol.Optional("import_images", default=True): cv.boolean,
     vol.Optional("skip_existing", default=True): cv.boolean,
 })
 
@@ -382,6 +390,43 @@ async def async_import_from_mealie(call: ServiceCall) -> ServiceResponse:
     return await _async_import(call, incoming)
 
 
+
+async def async_import_from_mela(call: ServiceCall) -> ServiceResponse:
+    """Import a .melarecipe or .melarecipes file from inside the config directory."""
+    await _async_require_admin(call)
+    import os
+
+    from .importers import parse_mela
+
+    raw_path = call.data["path"]
+    config_dir = os.path.realpath(call.hass.config.path())
+    target = os.path.realpath(
+        raw_path if os.path.isabs(raw_path) else call.hass.config.path(raw_path)
+    )
+    # Keep this to the config directory. The service would otherwise read any file
+    # the Home Assistant process can reach, which is not something a recipe
+    # importer has any business doing.
+    if not (target == config_dir or target.startswith(config_dir + os.sep)):
+        raise HomeAssistantError(
+            "The file must be inside the Home Assistant config directory. "
+            f"Put it in {config_dir} and pass a path relative to that."
+        )
+
+    image_dir = call.hass.config.path("www/recipecards") if call.data.get("import_images", True) else None
+    try:
+        incoming = await call.hass.async_add_executor_job(
+            parse_mela, target, image_dir, "/local/recipecards"
+        )
+    except ValueError as err:
+        raise HomeAssistantError(str(err)) from err
+    except Exception as err:  # noqa: BLE001
+        raise HomeAssistantError(f"Could not read the Mela file: {err}") from err
+
+    if not incoming:
+        raise HomeAssistantError("That file contained no readable recipes.")
+    return await _async_import(call, incoming)
+
+
 async def async_register_services(hass: HomeAssistant) -> None:
     """Register Recipe Cards services."""
     if hass.services.has_service(DOMAIN, SERVICE_ADD_RECIPE):
@@ -406,6 +451,10 @@ async def async_register_services(hass: HomeAssistant) -> None:
         DOMAIN, SERVICE_IMPORT_MEALIE, async_import_from_mealie,
         schema=IMPORT_MEALIE_SCHEMA, supports_response=SupportsResponse.OPTIONAL,
     )
+    hass.services.async_register(
+        DOMAIN, SERVICE_IMPORT_MELA, async_import_from_mela,
+        schema=IMPORT_MELA_SCHEMA, supports_response=SupportsResponse.OPTIONAL,
+    )
 
 async def async_remove_services(hass: HomeAssistant) -> None:
     """Remove Recipe Cards services."""
@@ -418,3 +467,4 @@ async def async_remove_services(hass: HomeAssistant) -> None:
     hass.services.async_remove(DOMAIN, SERVICE_DELETE_RECIPE)
     hass.services.async_remove(DOMAIN, SERVICE_IMPORT_RECIPES)
     hass.services.async_remove(DOMAIN, SERVICE_IMPORT_MEALIE)
+    hass.services.async_remove(DOMAIN, SERVICE_IMPORT_MELA)

@@ -1,3 +1,16 @@
+## 2.3.0
+
+- **Import from Mela.** `recipecards.import_from_mela` reads a `.melarecipe` or
+  `.melarecipes` export. Categories become tags. Mela stores ingredients and method as single
+  markdown strings, so bullets, numbering and bold markers are stripped and each line becomes
+  an item. Photos are base64 inside the file and are written out to `config/www/recipecards/`
+  and referenced from `/local`, rather than embedded, since a few hundred recipes of embedded
+  photos would be tens of megabytes of JSON. `import_images: false` brings the text only, and
+  HEIC photos are skipped with a warning because no browser renders them.
+- The Mela importer only reads files inside the Home Assistant config directory. It is not a
+  way to read arbitrary files off the host.
+- README rewritten for tags, photos and both importers.
+
 ## 2.2.0
 
 - **Import from Mealie.** `recipecards.import_from_mealie` pulls every recipe off a Mealie

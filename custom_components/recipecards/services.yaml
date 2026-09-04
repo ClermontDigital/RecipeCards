@@ -271,3 +271,42 @@ import_from_mealie:
       default: true
       selector:
         boolean:
+
+import_from_mela:
+  name: Import from Mela
+  description: >-
+    Import a .melarecipe or .melarecipes file exported from Mela. Put the file
+    somewhere inside your Home Assistant config directory and give the path.
+    Photos are written to config/www/recipecards and served from /local.
+  fields:
+    config_entry_id:
+      name: Recipe list
+      description: The section to import into.
+      required: false
+      selector:
+        config_entry:
+          integration: recipecards
+    path:
+      name: File path
+      description: >-
+        Path to the export, relative to your config directory, for example
+        mela-export.melarecipes
+      required: true
+      selector:
+        text:
+    import_images:
+      name: Import photos
+      description: >-
+        Write each recipe's first photo into config/www/recipecards. Turn off to
+        import the text only.
+      required: false
+      default: true
+      selector:
+        boolean:
+    skip_existing:
+      name: Skip existing
+      description: Skip anything whose title is already in that section.
+      required: false
+      default: true
+      selector:
+        boolean:
