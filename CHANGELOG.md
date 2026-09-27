@@ -1,3 +1,12 @@
+## 2.4.1
+
+- **Search no longer loses focus.** Each keystroke re-rendered the whole card, including the search
+  box, and then tried to focus the new box - but inside Home Assistant the card sits in `ha-card`,
+  which draws its slot a moment later, and until then nothing inside it can take focus. So the
+  first letter landed and every later one went nowhere. Typing now updates only the count and the
+  recipe grid and never touches the box. Anything that does re-render the whole card while you're
+  typing (a tab click, recipes refreshing) puts focus back once `ha-card` has drawn.
+
 ## 2.4.0
 
 - **Make a bigger or smaller batch.** A *Make ½× 1× 2× 3× 4×* control sits beside the

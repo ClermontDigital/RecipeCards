@@ -573,7 +573,48 @@
     }
 
     // ---------- render ----------
+    // A full re-render replaces the search box. If it had focus (a refresh arriving
+    // mid-typing, a tab click, the tray view), put it back once ha-card has drawn.
     _render() {
+      const prev = this.querySelector('.rc-search input');
+      const root = prev && prev.getRootNode();
+      const pos = prev && root && root.activeElement === prev ? prev.selectionStart : null;
+      this._renderNow();
+      if (pos !== null) this._refocusSearch(pos);
+    }
+
+    _refocusSearch(pos) {
+      const input = this.querySelector('.rc-search input');
+      if (!input) return;
+      const go = () => {
+        if (!input.isConnected) return;
+        input.focus({ preventScroll: true });
+        try { input.setSelectionRange(pos, pos); } catch (e) { /* not a text input */ }
+      };
+      // ha-card is a Lit element: until its first render adds the <slot>, our
+      // content isn't rendered, and focus() on anything inside it silently fails.
+      const card = this.querySelector('ha-card');
+      if (card && card.updateComplete) card.updateComplete.then(go);
+      else go();
+    }
+
+    // Typing in the search box: swap the count and the grid, never the box itself.
+    _updateResults() {
+      const old = this.querySelector('.rc-grid, .rc-empty');
+      if (!old || this._view === 'tray') { this._render(); return; }
+      const list = this._visible();
+      const count = this.querySelector('.rc-count');
+      if (count) count.textContent = `${list.length} recipe${list.length === 1 ? '' : 's'}`;
+      const tmp = document.createElement('div');
+      tmp.innerHTML = list.length
+        ? `<div class="rc-grid">${list.map((r) => this._tileHtml(r)).join('')}</div>`
+        : this._emptyHtml();
+      old.replaceWith(...tmp.childNodes);
+      this._wireTiles();
+      this._wireMore();
+    }
+
+    _renderNow() {
       if (!this._config) return;
       if (this._error) {
         this.innerHTML = `${STYLE}<ha-card><div class="rc-wrap"><ha-alert alert-type="error">${this._esc(this._error)}</ha-alert></div></ha-card>`;
@@ -790,10 +831,7 @@
       if (search) {
         search.addEventListener('input', (e) => {
           this._query = e.target.value;
-          const pos = e.target.selectionStart;
-          this._render();
-          const next = this.querySelector('.rc-search input');
-          if (next) { next.focus(); next.setSelectionRange(pos, pos); }
+          this._updateResults();
         });
       }
       this._wireMore();
