@@ -1,3 +1,21 @@
+## 2.4.0
+
+- **Make a bigger or smaller batch.** A *Make ½× 1× 2× 3× 4×* control sits beside the
+  ingredients, with a box for any other multiplier (1.5, 6…). The amounts inside each ingredient
+  line are scaled and highlighted; the recipe itself is not changed. The choice is remembered per
+  recipe on that device, like the ticks.
+- Every amount on a line is scaled, including equivalents in brackets and alternatives:
+  `1 cup + 2 tbsp (270 ml)`, `1 tbsp zest (from 2 to 3 lemons)`, `1 tbsp zest or 4 drops oil`.
+  Fractions stay fractions (`1/3` → `2/3`, `½` → `1`), grams and millilitres stay decimal.
+- Package sizes are not multiplied - the count is: `1 (400 g) can` → `2 (400 g) can`,
+  `1 can (8 ounces)` → `2 can (8 ounces)`, and a bare `400 g can tomatoes` becomes
+  `2 × 400 g can tomatoes`. Temperatures, times, percentages and cut sizes (`1 inch pieces`,
+  `3 mm thick`) are left alone.
+- Checked against 1,229 real ingredient lines at ×½, ×1.5, ×2 and ×4. Tests in
+  `tests/card/` (`node --test tests/card/*.test.mjs`).
+- `pytest.ini` used a `[tool:pytest]` header, which only `setup.cfg` understands, so pytest
+  ignored the whole file and every async test errored. Fixed; `pytest` runs all 64 again.
+
 ## 2.3.0
 
 - **Import from Mela.** `recipecards.import_from_mela` reads a `.melarecipe` or

@@ -150,6 +150,29 @@
         margin: 0 0 10px; font-size: .78rem; text-transform: uppercase; letter-spacing: .08em;
         color: var(--secondary-text-color); font-weight: 600;
       }
+      .rc-col-head {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 6px 10px; flex-wrap: wrap; margin: 0 0 10px;
+      }
+      .rc-col-head h3 { margin: 0; }
+      .rc-scale { display: flex; align-items: center; gap: 3px; flex-wrap: wrap; }
+      .rc-scale-l { font-size: .72rem; color: var(--secondary-text-color); margin-right: 2px; }
+      .rc-scale button {
+        border: 1px solid var(--divider-color); background: none; cursor: pointer;
+        border-radius: 999px; padding: 2px 6px; min-width: 28px; font: inherit; font-size: .76rem;
+        color: var(--secondary-text-color); transition: all .15s;
+      }
+      .rc-scale button:hover { background: var(--secondary-background-color); }
+      .rc-scale button[aria-pressed="true"] {
+        background: var(--primary-color); border-color: var(--primary-color);
+        color: var(--text-primary-color, #fff); font-weight: 500;
+      }
+      .rc-scale input {
+        width: 3em; padding: 2px 6px; font: inherit; font-size: .76rem; border-radius: 999px;
+        border: 1px solid var(--divider-color); background: none; color: var(--primary-text-color);
+      }
+      .rc-scale input.on { border-color: var(--primary-color); }
+      .rc-q { font-weight: 600; color: var(--primary-color); }
       .rc-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
       .rc-item {
         display: flex; gap: 10px; align-items: flex-start; cursor: pointer;
@@ -249,6 +272,115 @@
       }
     </style>
   `;
+
+  // ---------- batch multiplier: scale the amounts inside free-text ingredient lines ----------
+  // Every amount on the line is scaled ("1 cup + 2 tbsp (270 ml)", "2 to 3 lemons");
+  // package sizes, temperatures, times, percentages and cut sizes are left alone.
+  const UNI = { '½': 1 / 2, '⅓': 1 / 3, '⅔': 2 / 3, '¼': 1 / 4, '¾': 3 / 4, '⅕': 1 / 5, '⅖': 2 / 5,
+    '⅗': 3 / 5, '⅘': 4 / 5, '⅙': 1 / 6, '⅚': 5 / 6, '⅛': 1 / 8, '⅜': 3 / 8, '⅝': 5 / 8, '⅞': 7 / 8 };
+  const UNI_CHARS = Object.keys(UNI).join('');
+  const NUM = `(?:\\d+(?:\\s+|-)\\d+\\/\\d+|\\d+\\/\\d+|\\d*[${UNI_CHARS}]|\\d+(?:\\.\\d+)?)`;
+  const QTY_RE = new RegExp(`(${NUM})(?:(\\s*(?:-|–|—|to)\\s*)(${NUM}))?`, 'g');
+  const FRACTIONS = [[1, 8, '⅛'], [1, 4, '¼'], [1, 3, '⅓'], [3, 8, '⅜'], [1, 2, '½'],
+    [5, 8, '⅝'], [2, 3, '⅔'], [1, 6, '⅙'], [5, 6, '⅚'], [3, 4, '¾'], [7, 8, '⅞']];
+  const METRIC_RE = /^\s*(?:mg|g|gm|gms|grams?|kg|kilograms?|ml|mls|millilit(?:er|re)s?|cl|dl|l|lit(?:er|re)s?)\b/i;
+  // Numbers that describe the thing rather than how much of it: temperatures,
+  // percentages, times, pan sizes.
+  const NOT_AMOUNT_RE = /^\s*(?:%|°|º|degrees?\b|(?:hours?|hrs?|minutes?|mins?|seconds?|secs?|days?|weeks?)\b|(?:cm|mm)\b|-?\s*inch|in\b|")/i;
+  // "400 g can", "(400 g) tin": a package size, not an amount to multiply.
+  const CONTAINER = '(?:cans?|tins?|jars?|packets?|packages?|packs?|pkts?|bags?|box(?:es)?|bottles?|cartons?|blocks?|tubs?|containers?|punnets?)';
+  const SIZE_UNIT = '(?:g|gm|grams?|kg|kilograms?|ml|millilit(?:er|re)s?|l|lit(?:er|re)s?|oz|ounces?|lbs?|pounds?|fl\\.?\\s*oz)';
+  const PACKAGE_RE = new RegExp(`^\\s*-?\\s*${SIZE_UNIT}\\b\\s*\\)?\\s*${CONTAINER}\\b`, 'i');
+  // "1 can (8 ounces)": the size follows the container
+  const AFTER_CONTAINER_RE = new RegExp(`\\b${CONTAINER}\\s*\\(\\s*(?:about\\s+)?$`, 'i');
+
+  function parseNum(s) {
+    s = s.trim();
+    let m = s.match(/^(\d+)(?:\s+|-)(\d+)\/(\d+)$/);
+    if (m) return +m[1] + +m[2] / +m[3];
+    m = s.match(/^(\d+)\/(\d+)$/);
+    if (m) return +m[2] ? +m[1] / +m[2] : NaN;
+    m = s.match(new RegExp(`^(\\d*)([${UNI_CHARS}])$`));
+    if (m) return (m[1] ? +m[1] : 0) + UNI[m[2]];
+    return parseFloat(s);
+  }
+
+  function styleOf(s) {
+    if (new RegExp(`[${UNI_CHARS}]`).test(s)) return 'unicode';
+    if (s.includes('.')) return 'decimal';
+    return 'ascii';
+  }
+
+  function formatNum(v, style, metric) {
+    if (Math.abs(v - Math.round(v)) < 1e-6) return String(Math.round(v));
+    if (!metric && style !== 'decimal') {
+      const whole = Math.floor(v);
+      const frac = v - whole;
+      for (const [n, d, u] of FRACTIONS) {
+        if (Math.abs(frac - n / d) < 0.01) {
+          if (style === 'unicode') return `${whole || ''}${u}`;
+          return whole ? `${whole} ${n}/${d}` : `${n}/${d}`;
+        }
+      }
+    }
+    const dp = v < 10 ? 2 : v < 100 ? 1 : 0;
+    return String(Number(v.toFixed(dp)));
+  }
+
+  // Split an ingredient line into plain text and scaled-quantity parts.
+  // Returns [{text, scaled: bool}] so callers can highlight what changed.
+  function scaleParts(line, factor) {
+    const text = String(line ?? '');
+    if (!factor || factor === 1) return [{ text, scaled: false }];
+    const parts = [];
+    let last = 0;
+    let packageAt = -1;  // first quantity skipped because it was a package/piece size
+    QTY_RE.lastIndex = 0;
+    let m;
+    while ((m = QTY_RE.exec(text))) {
+      const start = m.index;
+      const end = start + m[0].length;
+      const before = text.slice(0, start);
+      const after = text.slice(end);
+      const prev = before.slice(-1);
+      const skip =
+        /[A-Za-z]/.test(prev) ||                 // B12, Type 00 handled below
+        /[x×]\s*$/i.test(before) ||              // "2 x 400g tins": the 400g
+        /^-[A-Za-z]/.test(after) ||              // "28-ounce can", "12-wing bags"
+        AFTER_CONTAINER_RE.test(before) ||
+        NOT_AMOUNT_RE.test(after) ||
+        PACKAGE_RE.test(after) ||
+        /^\s*°?\s*[CF]\b/.test(after) && parseNum(m[1]) >= 100 ||  // 180C, 350 F
+        parseNum(m[1]) === 0;
+      if (skip) {
+        if (packageAt < 0 && !parts.length && (PACKAGE_RE.test(after) || /^\s*-?\s*(?:inch|cm)\b/i.test(after))
+            && /^\s*(?:[A-Za-z][A-Za-z ()]*:\s*)?$/.test(before)) packageAt = start;
+        continue;
+      }
+      const metric = METRIC_RE.test(after);
+      const a = parseNum(m[1]);
+      if (!Number.isFinite(a)) continue;
+      let out = formatNum(a * factor, styleOf(m[1]), metric);
+      if (m[3] !== undefined) {
+        const b = parseNum(m[3]);
+        if (!Number.isFinite(b)) continue;
+        out += m[2] + formatNum(b * factor, styleOf(m[3]), metric);
+      }
+      if (start > last) parts.push({ text: text.slice(last, start), scaled: false });
+      parts.push({ text: out, scaled: true });
+      last = end;
+    }
+    if (last < text.length) parts.push({ text: text.slice(last), scaled: false });
+    if (packageAt >= 0 && !parts.some((p) => p.scaled)) {
+      return [
+        { text: text.slice(0, packageAt), scaled: false },
+        { text: `${formatNum(factor, 'unicode', false)} × `, scaled: true },
+        { text: text.slice(packageAt), scaled: false },
+      ].filter((p) => p.text);
+    }
+    return parts;
+  }
+  const SCALE_PRESETS = [0.5, 1, 2, 3, 4];
 
   const PALETTE = ['#D98F3B', '#8C3B2E', '#3E6B8A', '#5C8A3E', '#7B4B2A', '#6A4C93', '#B0455E', '#4A5568'];
 
@@ -370,6 +502,34 @@
       if (set.has(key)) set.delete(key); else set.add(key);
       try { localStorage.setItem('rc-ticks-' + id, JSON.stringify([...set])); } catch (e) { /* private mode */ }
       return set;
+    }
+
+    // ---------- batch multiplier (per recipe; survives re-render and reload) ----------
+    _scale(id) {
+      try {
+        const v = parseFloat(localStorage.getItem('rc-scale-' + id));
+        return v > 0 ? v : 1;
+      } catch (e) { return 1; }
+    }
+    _setScale(id, v) {
+      try {
+        if (v === 1) localStorage.removeItem('rc-scale-' + id);
+        else localStorage.setItem('rc-scale-' + id, String(v));
+      } catch (e) { /* private mode */ }
+    }
+    _ingHtml(item, factor) {
+      return scaleParts(item, factor)
+        .map((p) => (p.scaled ? `<b class="rc-q">${this._esc(p.text)}</b>` : this._esc(p.text)))
+        .join('');
+    }
+    _scaleHtml(factor) {
+      const custom = SCALE_PRESETS.includes(factor) ? '' : String(factor);
+      return `<div class="rc-scale" role="group" aria-label="Batch size">
+          <span class="rc-scale-l">Make</span>
+          ${SCALE_PRESETS.map((v) => `<button type="button" data-scale="${v}" aria-pressed="${v === factor}">${v === 0.5 ? '½' : v}×</button>`).join('')}
+          <input type="number" min="0.1" max="50" step="any" inputmode="decimal" placeholder="×"
+                 aria-label="Custom multiplier" class="${custom ? 'on' : ''}" value="${custom}">
+        </div>`;
     }
 
     // ---------- helpers ----------
@@ -523,10 +683,11 @@
 
     _detailBodyHtml(r) {
       const ticks = this._ticks(r.id);
+      const factor = this._scale(r.id);
       const ing = (r.ingredients || []).map((item, i) => {
         const done = ticks.has('i' + i);
         return `<li class="rc-item ${done ? 'done' : ''}" data-tick="i${i}">
-          <span class="rc-check">${done ? '&#10003;' : ''}</span><span>${this._esc(item)}</span></li>`;
+          <span class="rc-check">${done ? '&#10003;' : ''}</span><span class="rc-ing">${this._ingHtml(item, factor)}</span></li>`;
       }).join('');
       const steps = (r.instructions || []).map((item, i) => {
         const done = ticks.has('s' + i);
@@ -535,7 +696,7 @@
       }).join('');
       return `
         <div class="rc-cols">
-          ${ing ? `<div class="rc-col"><h3>Ingredients</h3><ul class="rc-list">${ing}</ul></div>` : ''}
+          ${ing ? `<div class="rc-col"><div class="rc-col-head"><h3>Ingredients</h3>${this._scaleHtml(factor)}</div><ul class="rc-list">${ing}</ul></div>` : ''}
           ${steps ? `<div class="rc-col"><h3>Method</h3><ul class="rc-list">${steps}</ul></div>` : ''}
         </div>
         ${r.notes ? `<div class="rc-notes" style="--rc-accent:${this._esc(r.color || PALETTE[0])}"><b>Notes</b>${this._esc(r.notes)}</div>` : ''}`;
@@ -576,7 +737,38 @@
     }
 
     _wireDetailBody(r, root) {
-      (root || this).querySelectorAll('.rc-item').forEach((el) => {
+      const scope = root || this;
+      // Re-render only the ingredient text, so an open recipe or modal stays put.
+      const apply = (v) => {
+        v = Math.round(v * 100) / 100;
+        if (!(v > 0)) return;
+        this._setScale(r.id, v);
+        (r.ingredients || []).forEach((item, i) => {
+          const span = scope.querySelector(`.rc-item[data-tick="i${i}"] .rc-ing`);
+          if (span) span.innerHTML = this._ingHtml(item, v);
+        });
+        scope.querySelectorAll('.rc-scale button').forEach((b) => {
+          b.setAttribute('aria-pressed', String(parseFloat(b.getAttribute('data-scale')) === v));
+        });
+        const input = scope.querySelector('.rc-scale input');
+        if (input) {
+          const custom = !SCALE_PRESETS.includes(v);
+          input.classList.toggle('on', custom);
+          if (!custom) input.value = '';
+        }
+      };
+      scope.querySelectorAll('.rc-scale button').forEach((b) => {
+        b.addEventListener('click', () => apply(parseFloat(b.getAttribute('data-scale'))));
+      });
+      const custom = scope.querySelector('.rc-scale input');
+      if (custom) {
+        custom.addEventListener('change', () => {
+          const v = parseFloat(custom.value);
+          if (v > 0 && v <= 50) apply(v);
+          else if (!custom.value) apply(1);
+        });
+      }
+      scope.querySelectorAll('.rc-item').forEach((el) => {
         el.addEventListener('click', () => {
           const key = el.getAttribute('data-tick');
           const set = this._toggleTick(r.id, key);
@@ -836,6 +1028,7 @@
 
   const RC_VERSION = '2.3.0';
   try {
+    RecipeCardsCard.scaleParts = scaleParts;  // for tests
     if (!customElements.get('recipecards-card')) {
       customElements.define('recipecards-card', RecipeCardsCard);
       console.info(

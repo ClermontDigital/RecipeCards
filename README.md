@@ -13,6 +13,7 @@ Retro-style recipe card management for Home Assistant. Store, browse, and displa
 - 📸 **Photos** - a link on each recipe, shown on the tile and as a header in the dialog.
 - ⏱️ **Times picked up automatically** - write "Bake for 20 minutes" in the method and it becomes the cook time. Anything you set explicitly wins.
 - ✅ **Cook from it** - ingredients and method tick off as you go, remembered per recipe.
+- ✖️ **Make a bigger batch** - *Make ½× 1× 2× 3× 4×* (or any multiplier) scales the ingredient amounts, including grams in brackets, and leaves can sizes, temperatures and times alone.
 - 📥 **Import from Mealie and Mela** - see [Importing](#importing-from-other-apps).
 - 🔒 **Admin only editing** - everyone else gets full read access, so the dashboard can be shared with the household.
 - 🔄 **WebSocket API** - the card reads recipes over it, so the sensors stay small no matter how many you have.
