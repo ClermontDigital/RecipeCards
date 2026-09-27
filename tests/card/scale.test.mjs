@@ -11,6 +11,7 @@ const ctx = {
   HTMLElement: class {},
   customElements: { get: (n) => defined[n], define: (n, c) => { defined[n] = c; } },
   window: {},
+  document: { addEventListener() {} },  // the card listens for page visibility at load
   console,
 };
 vm.runInNewContext(src, ctx);

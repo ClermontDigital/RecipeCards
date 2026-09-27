@@ -13,6 +13,7 @@ Retro-style recipe card management for Home Assistant. Store, browse, and displa
 - 📸 **Photos** - a link on each recipe, shown on the tile and as a header in the dialog.
 - ⏱️ **Times picked up automatically** - write "Bake for 20 minutes" in the method and it becomes the cook time. Anything you set explicitly wins.
 - ✅ **Cook from it** - ingredients and method tick off as you go, remembered per recipe.
+- ☕ **Keep screen on** - a ☕ button in an open recipe stops the phone or tablet going to sleep while you cook, and lets it sleep again when you close the recipe. The choice is remembered on that device.
 - ⭐ **Favourites** - star a recipe from its tile or its dialog, then filter with the *★ Favourites* chip. Each Home Assistant user has their own, stored in Home Assistant, so they follow you between devices. Anyone can star; it isn't an edit.
 - ✖️ **Make a bigger batch** - *Make ½× 1× 2× 3× 4×* (or any multiplier) scales the ingredient amounts, including grams in brackets, and leaves can sizes, temperatures and times alone.
 - 📥 **Import from Mealie and Mela** - see [Importing](#importing-from-other-apps).

@@ -1,3 +1,16 @@
+## 2.6.0
+
+- **Keep screen on.** A ☕ button in the recipe dialog and the single-recipe view stops the phone
+  or tablet sleeping while you cook. Closing the recipe (or leaving the dashboard) lets it sleep
+  again. Turn it on once and it stays on for every recipe you open on that device, until you
+  turn it off.
+- Uses the Screen Wake Lock API where the page is allowed it - HTTPS only, and some app webviews
+  refuse it - and otherwise a tiny silent looping video, which phones treat as media playing and
+  so don't sleep: the technique and media from NoSleep.js (MIT). That keeps it working when the
+  Home Assistant app is on a plain `http://` LAN address. The lock is taken back when you return
+  to the page, since browsers drop it whenever the page is hidden.
+- If the device allows neither, the button says so rather than pretending.
+
 ## 2.5.0
 
 - **Favourites.** A ☆ on every tile, in the recipe dialog and in the single-recipe view stars a
