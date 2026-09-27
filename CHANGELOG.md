@@ -1,3 +1,21 @@
+## 2.5.0
+
+- **Favourites.** A ☆ on every tile, in the recipe dialog and in the single-recipe view stars a
+  recipe; a *★ Favourites* chip beside *All* filters to them, and shows how many there are.
+  Starring from a tile doesn't open the recipe, and un-starring the last one while the filter is
+  on says how to add some rather than showing an empty grid.
+- Favourites are **per Home Assistant user** and stored by the integration
+  (`.storage/recipecards_favorites.json`), not in the browser, so they follow you between your
+  phone and the tablet, and one person's stars aren't everyone's. Starring is **not admin-only**:
+  it's a personal preference, not an edit to the recipe.
+- New WebSocket command `recipecards/favorite_set` (`recipe_id`, `favorite`). `recipe_list`,
+  `recipe_get` and `recipe_search` now mark each recipe `_favorite` for the calling user.
+  Deleted recipes never show as favourites, and their ids are pruned from the file on the next
+  change. Like the recipe stores, the file is never deleted automatically.
+- Card option `favourites: true` opens the card on the viewing user's favourites.
+- If saving a star fails, the star goes back and a notification says why.
+- Pressing Enter or Space on the star or the ⋮ menu no longer also opens the recipe.
+
 ## 2.4.1
 
 - **Search no longer loses focus.** Each keystroke re-rendered the whole card, including the search

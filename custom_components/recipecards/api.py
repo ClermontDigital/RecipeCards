@@ -5,6 +5,7 @@ import voluptuous as vol
 from homeassistant.core import HomeAssistant
 from homeassistant.components import websocket_api
 from .const import DOMAIN
+from .favorites import get_favorites
 from .models import Recipe
 from .services import cleanup_recipe_entities
 
@@ -16,6 +17,7 @@ RECIPE_ADD_TYPE = "recipecards/recipe_add"
 RECIPE_UPDATE_TYPE = "recipecards/recipe_update"
 RECIPE_DELETE_TYPE = "recipecards/recipe_delete"
 RECIPE_SEARCH_TYPE = "recipecards/recipe_search"
+FAVORITE_SET_TYPE = "recipecards/favorite_set"
 
 
 async def _update_coordinator(hass: HomeAssistant) -> None:
@@ -63,6 +65,7 @@ async def async_list_recipes(hass: HomeAssistant, connection: websocket_api.Acti
             if entry_title:
                 data["_entry_title"] = entry_title
             combined.append(data)
+    await _flag_favorites(hass, connection, combined)
     connection.send_result(msg["id"], combined)
 
 @websocket_api.async_response
@@ -90,6 +93,7 @@ async def async_get_recipe(hass: HomeAssistant, connection: websocket_api.Active
                         data["_entry_title"] = ce.title
                 except Exception:  # noqa: BLE001
                     pass
+                await _flag_favorites(hass, connection, [data])
                 connection.send_result(msg["id"], data)
                 return
     connection.send_error(msg["id"], "not_found", "Recipe not found")
@@ -231,7 +235,41 @@ async def async_search_recipes(hass: HomeAssistant, connection: websocket_api.Ac
                 continue
             
             combined.append(data)
+    await _flag_favorites(hass, connection, combined)
     connection.send_result(msg["id"], combined)
+
+
+async def _flag_favorites(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, recipes: list[dict]
+) -> None:
+    """Mark the recipes the calling user has starred (`_favorite`)."""
+    user = getattr(connection, "user", None)
+    favorites = await get_favorites(hass).async_get(user.id) if user else set()
+    for data in recipes:
+        data["_favorite"] = data.get("id") in favorites
+
+
+# Not admin-only: a favourite is the caller's own preference, not an edit.
+@websocket_api.async_response
+@websocket_api.websocket_command({
+    vol.Required("type"): FAVORITE_SET_TYPE,
+    vol.Required("recipe_id"): str,
+    vol.Required("favorite"): bool,
+})
+async def async_set_favorite(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """Star or unstar a recipe for the calling user."""
+    recipe_id = msg["recipe_id"]
+    existing: set[str] = set()
+    for _entry_id, storage in _all_storages(hass):
+        existing.update(r.id for r in await storage.async_load_recipes())
+    # Unstarring a recipe that has since been deleted is fine; starring one is not.
+    if msg["favorite"] and recipe_id not in existing:
+        connection.send_error(msg["id"], "not_found", "Recipe not found")
+        return
+    favorites = await get_favorites(hass).async_set(
+        connection.user.id, recipe_id, msg["favorite"], existing
+    )
+    connection.send_result(msg["id"], {"recipe_id": recipe_id, "favorite": recipe_id in favorites})
 
 def register_api(hass: HomeAssistant) -> None:
     """Register the WebSocket API commands."""
@@ -242,3 +280,4 @@ def register_api(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, async_update_recipe)
     websocket_api.async_register_command(hass, async_delete_recipe)
     websocket_api.async_register_command(hass, async_search_recipes)
+    websocket_api.async_register_command(hass, async_set_favorite)

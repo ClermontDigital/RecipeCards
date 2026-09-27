@@ -105,6 +105,19 @@
         color: var(--secondary-text-color); padding: 4px; line-height: 0;
       }
       .rc-more:hover { background: var(--secondary-background-color); color: var(--primary-text-color); }
+      .rc-fav {
+        position: absolute; top: 8px; right: 4px;
+        border: 0; background: none; cursor: pointer; border-radius: 50%;
+        color: var(--secondary-text-color); padding: 4px; line-height: 0; transition: transform .12s;
+      }
+      .rc-fav.beside-more { right: 34px; }
+      .rc-tile.has-img .rc-fav { background: rgba(0, 0, 0, .42); color: #fff; }
+      .rc-fav:hover { transform: scale(1.12); }
+      .rc-fav.on, .rc-tile.has-img .rc-fav.on { color: #FFC107; }
+      .rc-fav ha-icon { --mdc-icon-size: 18px; }
+      .rc-fav.inline { position: static; background: none; padding: 6px; }
+      .rc-fav.inline ha-icon { --mdc-icon-size: 22px; }
+      .rc-tile.no-img .rc-title { padding-right: 64px; }
       .rc-more ha-icon { --mdc-icon-size: 18px; }
 
       .rc-btn {
@@ -381,6 +394,7 @@
     return parts;
   }
   const SCALE_PRESETS = [0.5, 1, 2, 3, 4];
+  const FAVOURITES = '__favourites__';  // the tab value for the favourites filter
 
   const PALETTE = ['#D98F3B', '#8C3B2E', '#3E6B8A', '#5C8A3E', '#7B4B2A', '#6A4C93', '#B0455E', '#4A5568'];
 
@@ -395,7 +409,8 @@
       this._view = this._config.view || (this._config.recipe_id ? 'detail' : 'collection');
       this._selected = null;
       this._entryFilter = this._config.entry_id || null;  // set by config only
-      this._tagFilter = this._config.tag || 'all';
+      // favourites: true opens on the caller's favourites
+      this._tagFilter = (this._config.favourites || this._config.favorites) ? FAVOURITES : (this._config.tag || 'all');
       this._query = '';
       this._render();
     }
@@ -464,7 +479,9 @@
       if (this._entryFilter) {
         list = list.filter((r) => r._entry_id === this._entryFilter);
       }
-      if (this._tagFilter && this._tagFilter !== 'all') {
+      if (this._tagFilter === FAVOURITES) {
+        list = list.filter((r) => r._favorite);
+      } else if (this._tagFilter && this._tagFilter !== 'all') {
         list = list.filter((r) => (r.tags || []).includes(this._tagFilter));
       }
       const q = (this._query || '').trim().toLowerCase();
@@ -530,6 +547,54 @@
           <input type="number" min="0.1" max="50" step="any" inputmode="decimal" placeholder="×"
                  aria-label="Custom multiplier" class="${custom ? 'on' : ''}" value="${custom}">
         </div>`;
+    }
+
+    // ---------- favourites (per HA user, stored by the integration) ----------
+    _starHtml(r, extra) {
+      const on = Boolean(r._favorite);
+      const label = on ? 'Remove from favourites' : 'Add to favourites';
+      return `<button type="button" class="rc-fav ${extra || ''} ${on ? 'on' : ''}" data-id="${this._esc(r.id)}"
+          aria-pressed="${on}" aria-label="${label}" title="${label}">
+          <ha-icon icon="${on ? 'mdi:star' : 'mdi:star-outline'}"></ha-icon></button>`;
+    }
+    _paintStar(btn, on) {
+      const label = on ? 'Remove from favourites' : 'Add to favourites';
+      btn.classList.toggle('on', on);
+      btn.setAttribute('aria-pressed', String(on));
+      btn.setAttribute('aria-label', label);
+      btn.setAttribute('title', label);
+      const icon = btn.querySelector('ha-icon');
+      if (icon) icon.setAttribute('icon', on ? 'mdi:star' : 'mdi:star-outline');
+    }
+    _wireFavs(scope) {
+      (scope || this).querySelectorAll('.rc-fav').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const r = (this._recipes || []).find((x) => x.id === btn.getAttribute('data-id'));
+          if (r) this._toggleFavorite(r);
+        });
+        btn.addEventListener('keydown', (e) => e.stopPropagation());  // don't open the tile
+      });
+    }
+    async _toggleFavorite(r) {
+      const want = !r._favorite;
+      r._favorite = want;  // show it straight away; put it back if the save fails
+      this._favoriteChanged(r);
+      try {
+        const res = await this._hass.callWS({ type: 'recipecards/favorite_set', recipe_id: r.id, favorite: want });
+        r._favorite = Boolean(res && res.favorite);
+      } catch (err) {
+        r._favorite = !want;
+        this._toast(`Couldn't update favourites: ${(err && err.message) || err}`);
+      }
+      this._favoriteChanged(r);
+    }
+    _favoriteChanged(r) {
+      // An open recipe dialog lives outside the card; repaint its star directly.
+      document.querySelectorAll('.rc-scrim .rc-fav').forEach((btn) => {
+        if (btn.getAttribute('data-id') === r.id) this._paintStar(btn, Boolean(r._favorite));
+      });
+      this._render();  // tab count, the favourites filter, every star in the card
     }
 
     // ---------- helpers ----------
@@ -612,6 +677,7 @@
       old.replaceWith(...tmp.childNodes);
       this._wireTiles();
       this._wireMore();
+      this._wireFavs(this.querySelector('.rc-grid'));
     }
 
     _renderNow() {
@@ -645,18 +711,21 @@
 
     _tabsHtml() {
       const tags = this._allTags();
-      if (tags.length < 2) return '';
+      const favs = (this._recipes || []).filter((r) => r._favorite).length;
+      const showFavs = favs > 0 || this._tagFilter === FAVOURITES;
+      if (tags.length < 2 && !showFavs) return '';
       const tab = (value, label) =>
         `<button class="rc-tab" role="tab" data-tag="${this._esc(value)}" aria-selected="${this._tagFilter === value}">${this._esc(label)}</button>`;
       return `<div class="rc-tabs" role="tablist">
-        ${tab('all', 'All')}${tags.map((t) => tab(t.tag, `${t.tag} ${t.n}`)).join('')}
+        ${tab('all', 'All')}${showFavs ? tab(FAVOURITES, `★ Favourites ${favs}`) : ''}${
+          tags.map((t) => tab(t.tag, `${t.tag} ${t.n}`)).join('')}
       </div>`;
     }
 
     _tileHtml(r) {
       const colour = r.color || PALETTE[0];
       return `
-        <div class="rc-tile" data-id="${this._esc(r.id)}" tabindex="0" role="button"
+        <div class="rc-tile ${r.image ? 'has-img' : 'no-img'}" data-id="${this._esc(r.id)}" tabindex="0" role="button"
              aria-label="Open ${this._esc(r.title)}">
           ${r.image
             ? `<img class="rc-thumb" src="${this._esc(r.image)}" alt="" loading="lazy"
@@ -666,6 +735,7 @@
           ${this._canEdit() ? `<button class="rc-more" data-id="${this._esc(r.id)}" aria-label="More actions for ${this._esc(r.title)}">
             <ha-icon icon="${ICONS.more}"></ha-icon>
           </button>` : ''}
+          ${this._starHtml(r, this._canEdit() ? 'beside-more' : '')}
           <div class="rc-body">
             <div class="rc-title">${this._esc(r.title)}</div>
             ${r.description ? `<div class="rc-desc">${this._esc(r.description)}</div>` : ''}
@@ -681,7 +751,9 @@
       const filtered = (this._recipes || []).length > 0;
       return `<div class="rc-empty">
         <ha-icon icon="mdi:chef-hat"></ha-icon>
-        <p>${filtered ? 'No recipes match that search.' : 'No recipes yet.'}</p>
+        <p>${this._tagFilter === FAVOURITES && !(this._query || '').trim()
+          ? 'No favourites yet. Tap the ☆ on a recipe to add it here.'
+          : filtered ? 'No recipes match that search.' : 'No recipes yet.'}</p>
         ${filtered || !this._canEdit() ? '' : '<button class="rc-btn rc-add" type="button">Add your first recipe</button>'}
       </div>`;
     }
@@ -696,6 +768,7 @@
         </div></ha-card>`;
       this._wireCommon();
       this._wireTiles();
+      this._wireFavs();
     }
 
     _renderTray() {
@@ -757,6 +830,7 @@
             <div class="rc-detail-top">
               ${pinned ? '' : `<button class="rc-back"><ha-icon icon="${ICONS.back}"></ha-icon>All recipes</button>`}
               <span style="flex:1"></span>
+              ${this._starHtml(r, 'inline')}
               <button class="rc-more" style="position:static" data-id="${this._esc(r.id)}" aria-label="More actions">
                 <ha-icon icon="${ICONS.more}"></ha-icon>
               </button>
@@ -774,6 +848,7 @@
         this._selected = null; this._render();
       });
       this._wireMore();
+      this._wireFavs();
       this._wireDetailBody(r);
     }
 
@@ -843,8 +918,11 @@
           const r = (this._recipes || []).find((x) => x.id === el.getAttribute('data-id'));
           if (r) this._openRecipe(r);
         };
-        el.addEventListener('click', (e) => { if (!e.target.closest('.rc-more')) open(); });
-        el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
+        el.addEventListener('click', (e) => { if (!e.target.closest('.rc-more, .rc-fav')) open(); });
+        el.addEventListener('keydown', (e) => {
+          if (e.target !== el) return;  // Enter on the star or menu button is theirs
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
+        });
       });
     }
 
@@ -938,6 +1016,10 @@
       }
       buttons.push({ label: 'Done', onClick: (close) => close() });
       const m = this._modal(r.title, body, buttons);
+      const head = m.scrim.querySelector('.rc-modal-head');
+      head.insertAdjacentHTML('beforeend', this._starHtml(r, 'inline'));
+      head.appendChild(head.querySelector('.rc-close'));  // keep close last
+      this._wireFavs(head);
       m.body.querySelectorAll('.rc-cols').forEach((el) => { el.style.padding = '4px 0 0'; });
       m.body.querySelectorAll('.rc-notes').forEach((el) => { el.style.margin = '14px 0 0'; });
       this._wireDetailBody(r, m.body);
