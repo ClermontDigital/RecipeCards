@@ -16,6 +16,8 @@ def test_recipe_serialization_round_trip():
         "cook_time": None,
         "total_time": None,
         "tags": [],
+        "added": "2026-10-17",
+        "added_approx": False,
     }
     recipe = Recipe.from_dict(data)
     assert recipe.id == "abc123"
@@ -46,3 +48,14 @@ def test_parse_times_variants():
     assert Recipe.parse_times("") == {
         "prep_time": None, "cook_time": None, "total_time": None,
     }
+
+
+def test_added_round_trips_and_ignores_rubbish():
+    from custom_components.recipecards.models import Recipe
+    r = Recipe.from_dict({"title": "A", "added": "2026-10-17", "added_approx": True})
+    assert r.to_dict()["added"] == "2026-10-17" and r.to_dict()["added_approx"] is True
+    assert Recipe.from_dict({"title": "B", "added": "2026-10-17T09:30:00+10:00"}).added == "2026-10-17"
+    for bad in ("17/10/2026", "soon", "", None, "2026-13-40"):
+        r = Recipe.from_dict({"title": "C", "added": bad, "added_approx": True})
+        assert r.added is None and r.added_approx is False
+    assert Recipe.from_dict({"title": "D"}).added is None

@@ -1,3 +1,15 @@
+## 2.7.0
+
+- **When each recipe was added.** Every tile shows *Added 17 Oct*, and an open recipe shows the full
+  date with the year, so when there are two versions of a recipe you can see which is newer. Recipes
+  from another year show the year on the tile too.
+- New recipes are dated the day they're added, whichever way they come in: the card, the
+  `add_recipe` service, an import or the WebSocket API. An edit keeps the original date. A caller
+  can pass `added` (`YYYY-MM-DD`) to keep a recipe's date when restoring it.
+- Recipes added before this version have no date, so they show none, unless one is set.
+  `added_approx: true` marks a date that's only known to be "on or before", and shows as
+  *Added before 27 Sep*.
+
 ## 2.6.0
 
 - **Keep screen on.** A ☕ button in the recipe dialog and the single-recipe view stops the phone

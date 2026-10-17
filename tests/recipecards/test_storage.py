@@ -139,3 +139,33 @@ async def test_multiple_operations_sequence(storage):
     assert len(final) == 2
     assert final[0].id == "2" and final[0].title == "Updated Recipe 2"
     assert final[1].id == "3" 
+
+
+@pytest.mark.asyncio
+async def test_a_new_recipe_is_dated_today(storage):
+    from homeassistant.util import dt as dt_util
+    await storage.async_add_recipe(Recipe(id="n", title="New"))
+    await storage.async_add_recipes([Recipe(id="m", title="Imported")])
+    recipes = {r.id: r for r in await storage.async_load_recipes()}
+    today = dt_util.now().date().isoformat()
+    assert recipes["n"].added == today and recipes["m"].added == today
+    assert not recipes["n"].added_approx
+
+
+@pytest.mark.asyncio
+async def test_a_restored_recipe_keeps_its_date(storage):
+    await storage.async_add_recipe(Recipe(id="r", title="Quiche", added="2026-09-14"))
+    (r,) = await storage.async_load_recipes()
+    assert r.added == "2026-09-14"
+
+
+@pytest.mark.asyncio
+async def test_an_edit_keeps_the_date_it_was_added(storage):
+    """The card's form and the update service send the recipe without its date."""
+    await storage.async_add_recipe(Recipe(id="e", title="Pie", added="2026-09-27", added_approx=True))
+    assert await storage.async_update_recipe("e", Recipe(id="e", title="Pie, fixed"))
+    (r,) = await storage.async_load_recipes()
+    assert r.title == "Pie, fixed" and r.added == "2026-09-27" and r.added_approx
+    assert await storage.async_update_recipe("e", Recipe(id="e", title="Pie", added="2026-09-20"))
+    (r,) = await storage.async_load_recipes()
+    assert r.added == "2026-09-20" and not r.added_approx

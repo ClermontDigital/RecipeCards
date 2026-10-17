@@ -9,7 +9,21 @@
     more: 'mdi:dots-vertical',
     add: 'mdi:plus',
     search: 'mdi:magnify',
+    added: 'mdi:calendar-plus',
   };
+
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  // When the recipe went into the box: "17 Oct", with the year when it isn't this year or `long` is
+  // set, and "before 27 Sep" when only the latest possible day is known. '' when there's no date.
+  function addedLabel(r, long = false, today = new Date()) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String((r && r.added) || ''));
+    if (!m) return '';
+    const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+    if (mo < 1 || mo > 12 || d < 1 || d > 31) return '';
+    const day = `${d} ${MONTHS[mo - 1]}${long || y !== today.getFullYear() ? ` ${y}` : ''}`;
+    return r.added_approx ? `before ${day}` : day;
+  }
 
   const STYLE = `
     <style>
@@ -752,6 +766,10 @@
       if (r.instructions && r.instructions.length) {
         bits.push(`<span><ha-icon icon="${ICONS.steps}"></ha-icon>${r.instructions.length} steps</span>`);
       }
+      const added = addedLabel(r);
+      if (added) {
+        bits.push(`<span class="rc-added" title="Added ${this._esc(addedLabel(r, true))}"><ha-icon icon="${ICONS.added}"></ha-icon>Added ${this._esc(added)}</span>`);
+      }
       return bits.join('');
     }
 
@@ -1160,6 +1178,8 @@
       if (r.cook_time) stats.push(`<span class="rc-stat"><ha-icon icon="mdi:stove"></ha-icon>Cook <b>${this._fmtTime(r.cook_time)}</b></span>`);
       if (r.total_time) stats.push(`<span class="rc-stat"><ha-icon icon="mdi:timer-outline"></ha-icon>Total <b>${this._fmtTime(r.total_time)}</b></span>`);
       if (r.ingredients && r.ingredients.length) stats.push(`<span class="rc-stat"><ha-icon icon="${ICONS.basket}"></ha-icon><b>${r.ingredients.length}</b> ingredients</span>`);
+      const added = addedLabel(r, true);
+      if (added) stats.push(`<span class="rc-stat rc-added"><ha-icon icon="${ICONS.added}"></ha-icon>Added <b>${this._esc(added)}</b></span>`);
       return stats.join('');
     }
 
@@ -1275,9 +1295,10 @@
     }
   }
 
-  const RC_VERSION = '2.3.0';
+  const RC_VERSION = '2.7.0';
   try {
     RecipeCardsCard.scaleParts = scaleParts;  // for tests
+    RecipeCardsCard.addedLabel = addedLabel;  // for tests
     RecipeCardsCard.Awake = Awake;            // for tests
     if (!customElements.get('recipecards-card')) {
       customElements.define('recipecards-card', RecipeCardsCard);

@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from datetime import date
 from typing import List, Optional, Any
 import re
 
@@ -30,6 +31,11 @@ class Recipe:
     cook_time: Optional[int] = None  # Minutes
     total_time: Optional[int] = None  # Minutes
     tags: List[str] = field(default_factory=list)
+    # The day the recipe went into the box (YYYY-MM-DD, local). Set when it's added and kept through
+    # edits. `added_approx` means it went in on or before that day but the exact day isn't known
+    # (recipes from before dates were kept, dated from backups).
+    added: Optional[str] = None
+    added_approx: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -45,7 +51,17 @@ class Recipe:
             "cook_time": self.cook_time,
             "total_time": self.total_time,
             "tags": self.tags,
+            "added": self.added,
+            "added_approx": self.added_approx,
         }
+
+    @staticmethod
+    def _clean_date(value: Any) -> Optional[str]:
+        """A YYYY-MM-DD day, or None for anything else."""
+        try:
+            return date.fromisoformat(str(value)[:10]).isoformat() if value else None
+        except ValueError:
+            return None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Recipe":
@@ -63,6 +79,8 @@ class Recipe:
             cook_time=data.get("cook_time"),
             total_time=data.get("total_time"),
             tags=[str(t).strip() for t in (data.get("tags") or []) if str(t).strip()],
+            added=cls._clean_date(data.get("added")),
+            added_approx=bool(data.get("added_approx")) and bool(cls._clean_date(data.get("added"))),
         )
 
     @classmethod

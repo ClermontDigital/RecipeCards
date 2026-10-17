@@ -3,6 +3,7 @@ import logging
 from typing import Awaitable, Callable, Optional
 from homeassistant.helpers.storage import Store
 from homeassistant.core import HomeAssistant
+from homeassistant.util import dt as dt_util
 from .const import DOMAIN
 from .models import Recipe
 
@@ -70,10 +71,18 @@ class RecipeStorage:
             if getattr(recipe, key, None) is None:
                 setattr(recipe, key, parsed[key])
 
+    @staticmethod
+    def _stamp_added(recipe: Recipe) -> None:
+        """A new recipe is dated today, unless it already carries a date (a restore, say)."""
+        if not recipe.added:
+            recipe.added = dt_util.now().date().isoformat()
+            recipe.added_approx = False
+
     async def async_add_recipe(self, recipe: Recipe) -> None:
         # Parse times BEFORE persisting, so a parse failure can never leave a
         # half-written record on disk with no coordinator refresh behind it.
         self._apply_parsed_times(recipe)
+        self._stamp_added(recipe)
 
         async with self._lock:
             self._recipes = await self._read_from_disk()
@@ -93,6 +102,7 @@ class RecipeStorage:
             return 0
         for recipe in recipes:
             self._apply_parsed_times(recipe)
+            self._stamp_added(recipe)
         async with self._lock:
             self._recipes = await self._read_from_disk()
             self._recipes.extend(recipes)
@@ -107,6 +117,11 @@ class RecipeStorage:
             self._recipes = await self._read_from_disk()
             for idx, recipe in enumerate(self._recipes):
                 if recipe.id == recipe_id:
+                    # An edit (the card's form, the update service) doesn't send the date it was added:
+                    # keep the one it had.
+                    if not updated_recipe.added:
+                        updated_recipe.added = recipe.added
+                        updated_recipe.added_approx = recipe.added_approx
                     self._recipes[idx] = updated_recipe
                     await self._save_locked()
                     found = True
