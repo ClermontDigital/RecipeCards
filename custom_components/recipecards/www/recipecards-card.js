@@ -59,16 +59,24 @@
         scrollbar-width: none;
       }
       .rc-tabs::-webkit-scrollbar { display: none; }
+      /* Filled pills with full-strength text: the old outline-and-grey ones were hard to read on a dark theme. */
       .rc-tab {
-        border: 1px solid var(--divider-color); background: none; cursor: pointer;
-        border-radius: 999px; padding: 5px 14px; font: inherit; font-size: .82rem;
-        color: var(--secondary-text-color); white-space: nowrap; transition: all .15s;
+        display: inline-flex; align-items: center; gap: 6px; min-height: 34px;
+        border: 1px solid rgba(127, 127, 127, .28); background: rgba(127, 127, 127, .16); cursor: pointer;
+        border-radius: 999px; padding: 6px 14px; font: inherit; font-size: .88rem; font-weight: 500;
+        color: var(--primary-text-color); white-space: nowrap; transition: background .15s, border-color .15s;
       }
-      .rc-tab:hover { background: var(--secondary-background-color); }
+      .rc-tab:hover { background: rgba(127, 127, 127, .26); }
+      .rc-tab:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
+      .rc-tab-n {
+        font-size: .76rem; font-weight: 600; line-height: 1; padding: 3px 7px; border-radius: 999px;
+        background: rgba(127, 127, 127, .24);
+      }
       .rc-tab[aria-selected="true"] {
         background: var(--primary-color); border-color: var(--primary-color);
-        color: var(--text-primary-color, #fff); font-weight: 500;
+        color: var(--text-primary-color, #fff); font-weight: 600;
       }
+      .rc-tab[aria-selected="true"] .rc-tab-n { background: rgba(255, 255, 255, .26); }
 
       /* ---------- grid ---------- */
       .rc-grid {
@@ -850,11 +858,13 @@
       const favs = (this._recipes || []).filter((r) => r._favorite).length;
       const showFavs = favs > 0 || this._tagFilter === FAVOURITES;
       if (tags.length < 2 && !showFavs) return '';
-      const tab = (value, label) =>
-        `<button class="rc-tab" role="tab" data-tag="${this._esc(value)}" aria-selected="${this._tagFilter === value}">${this._esc(label)}</button>`;
+      const tab = (value, label, n) =>
+        `<button class="rc-tab" role="tab" data-tag="${this._esc(value)}" aria-selected="${this._tagFilter === value}"${
+          n != null ? ` aria-label="${this._esc(`${label}, ${n} recipes`)}"` : ''}>${this._esc(label)}${
+          n != null ? `<span class="rc-tab-n" aria-hidden="true">${n}</span>` : ''}</button>`;
       return `<div class="rc-tabs" role="tablist">
-        ${tab('all', 'All')}${showFavs ? tab(FAVOURITES, `★ Favourites ${favs}`) : ''}${
-          tags.map((t) => tab(t.tag, `${t.tag} ${t.n}`)).join('')}
+        ${tab('all', 'All')}${showFavs ? tab(FAVOURITES, '★ Favourites', favs) : ''}${
+          tags.map((t) => tab(t.tag, t.tag, t.n)).join('')}
       </div>`;
     }
 
@@ -1295,7 +1305,7 @@
     }
   }
 
-  const RC_VERSION = '2.7.0';
+  const RC_VERSION = '2.7.1';
   try {
     RecipeCardsCard.scaleParts = scaleParts;  // for tests
     RecipeCardsCard.addedLabel = addedLabel;  // for tests

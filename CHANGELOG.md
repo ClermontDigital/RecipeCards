@@ -1,3 +1,9 @@
+## 2.7.1
+
+- **Easier to read filter pills.** The *All*, *★ Favourites* and section pills along the top are filled
+  with full-strength text instead of faint grey on an outline, slightly larger, with each count in a
+  small badge. The selected pill stays in the theme colour. Screen readers hear "Mains, 39 recipes".
+
 ## 2.7.0
 
 - **When each recipe was added.** Every tile shows *Added 17 Oct*, and an open recipe shows the full
