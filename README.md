@@ -316,6 +316,18 @@ entity: sensor.recipe_cards
 view: detail
 ```
 
+**Recipe Showcase** (a shop window for the recipe box: one recipe at a time, big photo, cross-fading
+slowly at random with a gentle zoom; tap to open it in the same dialog as the main card):
+```yaml
+type: custom:recipecards-showcase-card
+title: Recipe ideas        # optional: the label over the photo, '' hides it
+interval: 12               # optional: seconds per recipe (at least 4)
+exclude_tags: [Pending]    # optional: also entry_id, tags or favourites: true to choose recipes
+```
+Every recipe comes up once before any repeats. Recipes tagged *Pending* show *To try*. It pauses on hover
+and keyboard focus, when it's off screen or the tab is hidden, and while a recipe is open, and has its own
+pause and next buttons. With reduced motion turned on it fades without the zoom.
+
 **Card Features:**
 - **Collection View**: Grid of coloured recipe tiles, built-in add/edit/delete
 - **Detail View**: Tab navigation and flip animation for instructions  

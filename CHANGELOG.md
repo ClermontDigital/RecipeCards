@@ -1,3 +1,16 @@
+## 2.8.0
+
+- **Recipe Showcase card** (`custom:recipecards-showcase-card`), a shop window for the recipe box: one recipe
+  at a time, big photo, cross-fading slowly at random (every 12 s by default) with a gentle zoom. Every recipe
+  comes up once before any repeats. Shows the section, title, time and ingredient count, and *To try* on recipes
+  tagged Pending; a thin line in the recipe's colour shows the time to the next one.
+- Tap (or Enter) opens the recipe in the same dialog as the Recipe Cards card: scaling, favourites, keep the
+  screen on, and edit for administrators.
+- Pauses on hover and keyboard focus, when it's off screen or the tab is hidden, and while a recipe is open,
+  with its own pause and next buttons. Reduced motion turns the zoom off.
+- Options: `title` (the label over the photo, `''` hides it), `interval` (seconds, at least 4), and `entry_id`,
+  `tags`, `exclude_tags` or `favourites` to choose which recipes it shows.
+
 ## 2.7.1
 
 - **Easier to read filter pills.** The *All*, *★ Favourites* and section pills along the top are filled

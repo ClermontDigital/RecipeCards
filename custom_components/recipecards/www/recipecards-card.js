@@ -1305,11 +1305,297 @@
     }
   }
 
-  const RC_VERSION = '2.7.1';
+  // ---------- showcase: one recipe at a time, slowly, at random ----------
+  // A shuffled bag: every recipe comes up once before any repeats, and a new round never
+  // starts with the one just shown.
+  function shuffleBag(ids, lastId, rand = Math.random) {
+    const bag = ids.slice();
+    for (let i = bag.length - 1; i > 0; i--) {
+      const j = Math.floor(rand() * (i + 1));
+      [bag[i], bag[j]] = [bag[j], bag[i]];
+    }
+    if (bag.length > 1 && bag[0] === lastId) [bag[0], bag[bag.length - 1]] = [bag[bag.length - 1], bag[0]];
+    return bag;
+  }
+
+  const SHOWCASE_STYLE = `
+    <style>
+      .rcs { position: relative; overflow: hidden; aspect-ratio: 4 / 3; background: #1a1a1a; cursor: pointer;
+             border-radius: var(--ha-card-border-radius, 12px); isolation: isolate; outline: none; }
+      .rcs:focus-visible { box-shadow: inset 0 0 0 3px var(--primary-color); }
+      .rcs-slide { position: absolute; inset: 0; opacity: 0; transition: opacity 1.6s ease; }
+      .rcs-slide.on { opacity: 1; }
+      .rcs-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+                 transform: scale(1); transform-origin: var(--rcs-origin, 50% 50%); }
+      .rcs-slide.on .rcs-img { transform: scale(1.09); transition: transform var(--rcs-zoom, 14s) linear; }
+      .rcs-fallback { position: absolute; inset: 0; }
+      .rcs-shade { position: absolute; inset: 0; background: linear-gradient(180deg,
+                   rgba(0,0,0,.38) 0%, rgba(0,0,0,0) 22%, rgba(0,0,0,0) 44%, rgba(0,0,0,.8) 100%); }
+      .rcs-text { position: absolute; left: 0; right: 0; bottom: 0; padding: 16px 18px 20px; color: #fff; }
+      .rcs-section { display: flex; align-items: center; gap: 8px; font-size: .72rem; font-weight: 600;
+                     letter-spacing: .12em; text-transform: uppercase; opacity: .92; }
+      .rcs-try { font-size: .72rem; font-weight: 600; letter-spacing: .02em; text-transform: none;
+                 padding: 2px 8px; border-radius: 999px; background: rgba(255,255,255,.22); }
+      .rcs-title { margin: 4px 0 6px; font-size: 1.35rem; font-weight: 600; line-height: 1.22;
+                   text-shadow: 0 1px 8px rgba(0,0,0,.45); display: -webkit-box; -webkit-line-clamp: 2;
+                   -webkit-box-orient: vertical; overflow: hidden; }
+      .rcs-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: .85rem; opacity: .92; }
+      .rcs-meta span { display: inline-flex; align-items: center; gap: 4px; }
+      .rcs-meta ha-icon { --mdc-icon-size: 16px; }
+      .rcs-label { position: absolute; top: 12px; left: 14px; padding: 4px 10px; border-radius: 999px;
+                   font-size: .78rem; font-weight: 500; color: #fff; background: rgba(0,0,0,.38);
+                   backdrop-filter: blur(4px); }
+      .rcs-label:empty { display: none; }
+      .rcs-ctrls { position: absolute; top: 6px; right: 6px; display: flex; gap: 2px; }
+      .rcs-btn { width: 40px; height: 40px; border: 0; border-radius: 50%; padding: 0; cursor: pointer;
+                 display: grid; place-items: center; color: #fff; background: rgba(0,0,0,.38);
+                 backdrop-filter: blur(4px); }
+      .rcs-btn:hover { background: rgba(0,0,0,.6); }
+      .rcs-btn:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
+      .rcs-btn ha-icon { --mdc-icon-size: 20px; }
+      .rcs-bar { position: absolute; left: 0; bottom: 0; height: 3px; width: 0;
+                 background: var(--rcs-colour, var(--primary-color)); }
+      .rcs-bar.run { width: 100%; transition: width var(--rcs-interval, 12s) linear; }
+      .rcs-empty { padding: 20px; color: var(--secondary-text-color); }
+      @media (prefers-reduced-motion: reduce) {
+        .rcs-slide { transition: opacity .3s linear; }
+        .rcs-slide.on .rcs-img { transform: none; transition: none; }
+      }
+    </style>`;
+
+  // A shop window for the recipe box: one recipe at a time, cross-fading slowly at random. Tap
+  // opens the recipe in the same dialog as the Recipe Cards card. Pauses on hover and focus,
+  // when off screen or the tab is hidden, while a recipe is open, and with its pause button.
+  //   type: custom:recipecards-showcase-card
+  //   title: Recipe ideas        # the label over the photo ('' hides it)
+  //   interval: 12               # seconds per recipe (min 4)
+  //   entry_id / tags / exclude_tags / favourites: which recipes to show (default all)
+  class RecipeShowcaseCard extends HTMLElement {
+    static getStubConfig() { return { type: 'custom:recipecards-showcase-card' }; }
+
+    setConfig(config) {
+      this._config = config || {};
+      this._interval = Math.max(4, Number(this._config.interval) || 12);
+      this._recipes = this._recipes || [];
+      this._bag = [];
+      this._current = null;
+      this._paused = false;
+      this._holds = new Set();
+      this._build();
+    }
+
+    set hass(hass) {
+      const first = !this._hass;
+      this._hass = hass;
+      if (!this._config) return;
+      let sig = '';
+      for (const id in hass.states) if (id.startsWith('sensor.recipe')) sig += id + hass.states[id].last_updated + '|';
+      if (sig === this._sig && !first) return;
+      this._sig = sig;
+      this._load();
+    }
+
+    getCardSize() { return 6; }
+    getGridOptions() { return { columns: 12, rows: 'auto', min_columns: 4 }; }
+
+    connectedCallback() {
+      if (!this._io && 'IntersectionObserver' in window) {
+        this._io = new IntersectionObserver((es) => this._hold('offscreen', !es[0].isIntersecting));
+      }
+      if (this._io && this._win) this._io.observe(this._win);
+      this._onVis = () => this._hold('hidden', document.hidden);
+      document.addEventListener('visibilitychange', this._onVis);
+      if (this._current) this._schedule();
+    }
+
+    disconnectedCallback() {
+      clearTimeout(this._timer); this._timer = null;
+      if (this._io) this._io.disconnect();
+      document.removeEventListener('visibilitychange', this._onVis);
+    }
+
+    _esc(t) { return RecipeCardsCard.prototype._esc(t); }
+
+    _build() {
+      const label = this._config.title === undefined ? 'Recipe ideas' : String(this._config.title || '');
+      this.innerHTML = `${SHOWCASE_STYLE}
+        <ha-card>
+          <div class="rcs" tabindex="0" role="button" aria-label="Recipe ideas">
+            <div class="rcs-slide"></div><div class="rcs-slide"></div>
+            <div class="rcs-label">${this._esc(label)}</div>
+            <div class="rcs-ctrls">
+              <button class="rcs-btn" type="button" data-act="pause" aria-label="Pause"><ha-icon icon="mdi:pause"></ha-icon></button>
+              <button class="rcs-btn" type="button" data-act="next" aria-label="Next recipe"><ha-icon icon="mdi:skip-next"></ha-icon></button>
+            </div>
+            <div class="rcs-bar"></div>
+          </div>
+          <div class="rcs-empty" hidden></div>
+        </ha-card>`;
+      const win = this._win = this.querySelector('.rcs');
+      this._bar = this.querySelector('.rcs-bar');
+      win.style.setProperty('--rcs-interval', `${this._interval}s`);
+      win.addEventListener('click', (e) => {
+        const btn = e.target.closest('.rcs-btn');
+        if (!btn) { this._open(); return; }
+        e.stopPropagation();
+        if (btn.dataset.act === 'next') this._next();
+        else this._setPaused(!this._paused);
+      });
+      win.addEventListener('keydown', (e) => {
+        if (e.target === win && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); this._open(); }
+      });
+      win.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') this._hold('hover', true); });
+      win.addEventListener('pointerleave', () => this._hold('hover', false));
+      win.addEventListener('focusin', () => this._hold('focus', true));
+      win.addEventListener('focusout', () => this._hold('focus', false));
+      if (this._io) this._io.observe(win);
+    }
+
+    async _load() {
+      const cfg = this._config;
+      try {
+        const list = await this._hass.callWS({ type: 'recipecards/recipe_list' });
+        let rs = Array.isArray(list) ? list : [];
+        if (cfg.entry_id) rs = rs.filter((r) => r._entry_id === cfg.entry_id);
+        const want = [].concat(cfg.tags || cfg.tag || []);
+        if (want.length) rs = rs.filter((r) => (r.tags || []).some((t) => want.includes(t)));
+        const skip = [].concat(cfg.exclude_tags || []);
+        if (skip.length) rs = rs.filter((r) => !(r.tags || []).some((t) => skip.includes(t)));
+        if (cfg.favourites || cfg.favorites) rs = rs.filter((r) => r._favorite);
+        this._recipes = rs;
+        this._error = null;
+      } catch (e) {
+        this._error = (e && (e.message || e.error)) || String(e);
+      }
+      const empty = this.querySelector('.rcs-empty');
+      const none = this._error || !this._recipes.length;
+      this._win.hidden = Boolean(none);
+      empty.hidden = !none;
+      if (none) {
+        empty.textContent = this._error ? `Could not load recipes: ${this._error}` : 'No recipes to show yet.';
+        clearTimeout(this._timer);
+        return;
+      }
+      const ids = new Set(this._recipes.map((r) => r.id));
+      this._bag = this._bag.filter((id) => ids.has(id));
+      const still = this._current && this._recipes.find((r) => r.id === this._current.id);
+      if (still) this._current = still; else this._next();
+    }
+
+    _next() {
+      if (!this._recipes.length) return;
+      if (!this._bag.length) this._bag = shuffleBag(this._recipes.map((r) => r.id), this._current && this._current.id);
+      const id = this._bag.shift();
+      const r = this._recipes.find((x) => x.id === id) || this._recipes[0];
+      this._current = r;
+      this._show(r);
+      this._schedule();
+    }
+
+    _show(r) {
+      const slides = this.querySelectorAll('.rcs-slide');
+      const into = slides[0].classList.contains('on') ? slides[1] : slides[0];
+      const out = into === slides[0] ? slides[1] : slides[0];
+      const origins = ['30% 35%', '70% 35%', '50% 55%', '35% 65%', '65% 65%', '50% 40%'];
+      into.style.setProperty('--rcs-origin', origins[Math.floor(Math.random() * origins.length)]);
+      into.style.setProperty('--rcs-zoom', `${this._interval + 2}s`);
+      into.innerHTML = this._slideHtml(r);
+      this._win.style.setProperty('--rcs-colour', r.color || PALETTE[0]);
+      this._win.setAttribute('aria-label', `Recipe idea: ${r.title}. Open recipe`);
+      const swap = () => requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (this._current !== r) return;  // skipped past while loading
+        into.classList.add('on');
+        out.classList.remove('on');
+      }));
+      const img = into.querySelector('img');
+      if (!img) { swap(); return; }
+      let done = false;
+      const go = () => { if (!done) { done = true; swap(); } };
+      img.addEventListener('error', () => { img.remove(); go(); }, { once: true });
+      (img.decode ? img.decode() : Promise.resolve()).then(go, go);
+      setTimeout(go, 4000);  // a slow photo still gets shown
+    }
+
+    _slideHtml(r) {
+      const esc = (t) => this._esc(t);
+      const fmt = RecipeCardsCard.prototype._fmtTime;
+      const time = fmt(r.total_time) || fmt(r.cook_time) || fmt(r.prep_time);
+      const n = (r.ingredients || []).length;
+      const section = r._entry_title || (r.tags || [])[0] || '';
+      const toTry = (r.tags || []).includes('Pending');
+      return `
+        ${r.image
+          ? `<img class="rcs-img" src="${esc(r.image)}" alt="" decoding="async">`
+          : `<div class="rcs-fallback" style="background:${esc(r.color || PALETTE[0])}"></div>`}
+        <div class="rcs-shade"></div>
+        <div class="rcs-text">
+          <div class="rcs-section">${esc(section)}${toTry ? '<span class="rcs-try">To try</span>' : ''}</div>
+          <div class="rcs-title">${esc(r.title)}</div>
+          <div class="rcs-meta">
+            ${time ? `<span><ha-icon icon="${ICONS.clock}"></ha-icon>${esc(time)}</span>` : ''}
+            ${n ? `<span><ha-icon icon="${ICONS.basket}"></ha-icon>${n} ingredients</span>` : ''}
+          </div>
+        </div>`;
+    }
+
+    // ---------- timing ----------
+    _schedule() {
+      clearTimeout(this._timer); this._timer = null;
+      const bar = this._bar;
+      bar.classList.remove('run');
+      bar.style.width = '0';
+      if (this._paused || this._holds.size || !this.isConnected) return;
+      void bar.offsetWidth;  // restart the progress line
+      bar.style.width = '';
+      bar.classList.add('run');
+      this._timer = setTimeout(() => this._next(), this._interval * 1000);
+    }
+
+    _hold(reason, on) {
+      const had = this._holds.size;
+      if (on) this._holds.add(reason); else this._holds.delete(reason);
+      if (Boolean(had) !== Boolean(this._holds.size) && this._current) this._schedule();
+    }
+
+    _setPaused(p) {
+      this._paused = p;
+      const btn = this.querySelector('[data-act="pause"]');
+      btn.setAttribute('aria-label', p ? 'Play' : 'Pause');
+      btn.querySelector('ha-icon').setAttribute('icon', p ? 'mdi:play' : 'mdi:pause');
+      this._schedule();
+    }
+
+    // Open in the Recipe Cards dialog (scaling, favourites, keep-screen-on, admin edit),
+    // borrowed from an unattached Recipe Cards card.
+    _open() {
+      const r = this._current;
+      if (!r || !this._hass) return;
+      if (!this._helper) {
+        this._helper = document.createElement('recipecards-card');
+        this._helper.setConfig({});
+      }
+      this._helper._hass = this._hass;
+      this._helper._recipes = this._recipes;
+      this._helper._openRecipe(r);
+      this._hold('dialog', true);
+      clearInterval(this._dialogWatch);
+      this._dialogWatch = setInterval(() => {
+        if (document.querySelector('.rc-scrim')) return;
+        clearInterval(this._dialogWatch);
+        this._hold('dialog', false);
+      }, 700);
+    }
+  }
+
+  const RC_VERSION = '2.8.0';
   try {
     RecipeCardsCard.scaleParts = scaleParts;  // for tests
     RecipeCardsCard.addedLabel = addedLabel;  // for tests
     RecipeCardsCard.Awake = Awake;            // for tests
+    RecipeCardsCard.shuffleBag = shuffleBag;  // for tests
+    if (!customElements.get('recipecards-showcase-card')) {
+      customElements.define('recipecards-showcase-card', RecipeShowcaseCard);
+    }
     if (!customElements.get('recipecards-card')) {
       customElements.define('recipecards-card', RecipeCardsCard);
       console.info(
@@ -1323,6 +1609,14 @@
         type: 'recipecards-card',
         name: 'Recipe Cards',
         description: 'Browse, cook from, and manage your recipes',
+        preview: false,
+      });
+    }
+    if (!window.customCards.some((c) => c.type === 'recipecards-showcase-card')) {
+      window.customCards.push({
+        type: 'recipecards-showcase-card',
+        name: 'Recipe Showcase',
+        description: 'One recipe at a time, slowly and at random: a shop window for your recipe box',
         preview: false,
       });
     }
